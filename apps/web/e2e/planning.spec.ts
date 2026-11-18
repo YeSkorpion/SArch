@@ -7,7 +7,8 @@ test('Anmeldung, Anforderung und leere Zustände', async ({ page }, info) => {
   await page.goto('/registrieren')
   await page.getByLabel('Name').fill('Testperson')
   await page.getByLabel('E-Mail').fill(email)
-  await page.getByLabel('Passwort').fill(password)
+  await page.getByLabel('Passwort', { exact: true }).fill(password)
+  await page.getByLabel('Passwort wiederholen').fill(password)
   await page.getByRole('button', { name: 'Registrieren' }).click()
   await expect(page.getByRole('heading', { name: 'Projekte' })).toBeVisible()
 

@@ -129,6 +129,46 @@ public sealed class ProjectWorkTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Empty(after.Body.GetProperty("review").EnumerateArray());
     }
 
+    [Fact]
+    public async Task Two_people_see_each_other_and_keep_the_newer_save()
+    {
+        var owner = await Person("together-owner@example.com");
+        var editor = await Person("together-editor@example.com");
+        var stranger = await Person("together-stranger@example.com");
+        _api = owner.Client;
+        var projectId = await Project("Zusammen");
+        Assert.Equal(HttpStatusCode.OK, (await CallRaw(HttpMethod.Post, $"/api/v1/projects/{projectId}/members", new { email = "together-editor@example.com", role = "Editor" })).Status);
+        var requirement = await Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/requirements", new { title = "Sichtbar" });
+        var id = requirement.GetProperty("id").GetGuid();
+        var version = requirement.GetProperty("version").GetInt32();
+        var before = await Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/presence", new { label = "Sichtbar", artifactId = id });
+        await Call(HttpMethod.Patch, $"/api/v1/projects/{projectId}/requirements/{id}", new { version, title = "Von Nora", description = "", status = "Offen", priority = "Mittel", tags = Array.Empty<string>() });
+        var editorHere = await editor.Client.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/presence", new { label = "Sichtbar", artifactId = id });
+        Assert.Equal(HttpStatusCode.OK, editorHere.Status);
+        var ownerView = await Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/presence", new { label = "Sichtbar", artifactId = id });
+        Assert.Contains(ownerView.GetProperty("people").EnumerateArray(), item => item.GetProperty("name").GetString() == "together-editor@example.com" && item.GetProperty("artifactId").GetGuid() == id);
+        Assert.True(ownerView.GetProperty("revision").GetInt64() > before.GetProperty("revision").GetInt64());
+        var stale = await editor.Client.Call(HttpMethod.Patch, $"/api/v1/projects/{projectId}/requirements/{id}", new { version, title = "Von Emil", description = "", status = "Offen", priority = "Mittel", tags = Array.Empty<string>() });
+        Assert.Equal(HttpStatusCode.Conflict, stale.Status);
+        var hidden = await stranger.Client.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/presence", new { label = "Sichtbar", artifactId = id });
+        Assert.Equal(HttpStatusCode.NotFound, hidden.Status);
+    }
+
+    [Fact]
+    public async Task Subarea_stays_under_its_parent_and_rejects_a_cycle()
+    {
+        await Person("area-owner@example.com");
+        var projectId = await Project("Bereiche");
+        var parent = await Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/areas", new { name = "Aufträge" });
+        var parentId = parent.GetProperty("id").GetGuid();
+        var child = await Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/areas", new { name = "Anlage", parentId });
+        Assert.Equal(parentId, child.GetProperty("parentId").GetGuid());
+        var cycle = await CallRaw(HttpMethod.Put, $"/api/v1/projects/{projectId}/areas/{parentId}", new { name = "Aufträge", description = "", parentId = child.GetProperty("id").GetGuid() });
+        Assert.Equal(HttpStatusCode.BadRequest, cycle.Status);
+        var blocked = await CallRaw(HttpMethod.Delete, $"/api/v1/projects/{projectId}/areas/{parentId}");
+        Assert.Equal(HttpStatusCode.Conflict, blocked.Status);
+    }
+
     private async Task<(ApiClient Client, Guid Id)> Person(string email)
     {
         var client = new ApiClient(fixture.Factory);

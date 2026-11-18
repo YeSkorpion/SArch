@@ -168,6 +168,7 @@ app.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 var api = app.MapGroup("/api/v1").AddEndpointFilter<CsrfFilter>();
 AuthEndpoints.Map(api);
 ProjectEndpoints.Map(api);
+TogetherEndpoints.Map(api);
 RequirementEndpoints.Map(api);
 DiagramEndpoints.Map(api);
 PlanningEndpoints.Map(api);

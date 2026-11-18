@@ -45,9 +45,18 @@ public static class DbSave
 {
     public static async Task<IResult?> SaveAsync(AppDbContext db, HttpContext http, CancellationToken ct)
     {
+        var projects = ChangedProjectIds(db);
         try
         {
-            await db.SaveChangesAsync(ct);
+            var written = await db.SaveChangesAsync(ct);
+            if (written > 0)
+            {
+                foreach (var id in projects)
+                {
+                    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE projects SET content_revision = content_revision + 1 WHERE id = {id}", ct);
+                }
+            }
+
             return null;
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgres)
@@ -66,6 +75,25 @@ public static class DbSave
 
             throw;
         }
+    }
+
+    private static List<Guid> ChangedProjectIds(AppDbContext db)
+    {
+        var ids = new HashSet<Guid>();
+        foreach (var entry in db.ChangeTracker.Entries())
+        {
+            if (entry.State is EntityState.Unchanged or EntityState.Detached) continue;
+            if (entry.Entity is Project project)
+            {
+                ids.Add(project.Id);
+                continue;
+            }
+
+            var property = entry.Properties.FirstOrDefault(item => item.Metadata.Name == "ProjectId");
+            if (property?.CurrentValue is Guid projectId && projectId != Guid.Empty) ids.Add(projectId);
+        }
+
+        return [.. ids];
     }
 }
 

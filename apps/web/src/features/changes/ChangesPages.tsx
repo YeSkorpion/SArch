@@ -9,6 +9,7 @@ import { artifactHref, searchTypeLabel } from '../../lib/labels'
 import type { Area, Member, PackageDetail, PackageStatus, PackageSummary, SearchHit, SnapshotChange, SnapshotDetail, SnapshotSummary } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
 import { UsagePanel } from '../usage/UsagePanel'
+import { AreaOptions } from '../areas/AreaOptions'
 
 function statusLabel(status: PackageStatus) {
   if (status === 'InPruefung') return 'In Prüfung'
@@ -73,7 +74,7 @@ export function ChangesPage() {
           <Field label="Fachbereich">
             <Select aria-label="Fachbereich" value={areaId} onChange={(event) => setAreaId(event.target.value)}>
               <option value="">Keiner</option>
-              {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+              <AreaOptions areas={areas.data} />
             </Select>
           </Field>
           <Field label="Verantwortlich">
@@ -208,7 +209,7 @@ export function PackageDetailPage() {
               <Field label="Fachbereich">
                 <Select aria-label="Fachbereich" value={draft.areaId} onChange={(event) => setDraft({ ...draft, areaId: event.target.value })}>
                   <option value="">Keiner</option>
-                  {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+                  <AreaOptions areas={areas.data} />
                 </Select>
               </Field>
               <Field label="Verantwortlich">

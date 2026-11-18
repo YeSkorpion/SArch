@@ -3,7 +3,7 @@ import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'rea
 import { PanelsTopLeft } from 'lucide-react'
 import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
-import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
+import { ConflictBanner, EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
 import { WireframeThumb } from '../../components/previews'
 import { Button, Field, Input, Modal, Select, Textarea } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
@@ -165,13 +165,11 @@ function ScreenEditor({ projectId, canWrite, initial, reload }: { projectId: str
   const [deleteOpen, setDeleteOpen] = useState(false)
   useEffect(() => { setScreenOpen(selected === null) }, [selected])
   useEffect(() => {
-    if (dirty) return
+    if (dirty || initial.version <= version) return
     setMeta({ name: initial.name, route: initial.route, purpose: initial.purpose, status: initial.status, notes: initial.notes })
     setWireframe(parseWireframe(initial.wireframeJson))
     setVersion(initial.version)
-    // Nur anwenden, wenn der Serverstand neu geladen wurde. Ein abgeschlossenes Speichern darf den Entwurf nicht zurücksetzen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial])
+  }, [dirty, initial, version])
   const autosave = useAutosave({
     enabled: canWrite && !preview,
     dirty,
@@ -236,10 +234,7 @@ function ScreenEditor({ projectId, canWrite, initial, reload }: { projectId: str
         <Button size="sm" className="lg:hidden" type="button" onClick={() => setInspectorOpen(true)}>Inspektor</Button>
       </div>
       {autosave.state === 'conflict' ? (
-        <div role="alert" className="border-b border-warning px-3 py-2 text-sm">
-          Der Entwurf wurde zwischenzeitlich gespeichert. Deine lokalen Änderungen bleiben erhalten.
-          <Button className="ml-2" size="sm" type="button" onClick={() => { setDirty(false); autosave.clearConflict(); void reload() }}>Serverstand laden</Button>
-        </div>
+        <ConflictBanner onReload={() => { setDirty(false); autosave.clearConflict(); void reload() }} onKeep={() => autosave.retry()} />
       ) : null}
       <div className="relative flex min-h-0 flex-1">
         {!preview ? (

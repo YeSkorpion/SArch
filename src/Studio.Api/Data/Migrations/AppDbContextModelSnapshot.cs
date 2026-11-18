@@ -295,6 +295,10 @@ namespace Studio.Api.Data.Migrations
                         .HasColumnType("character varying(160)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_id");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
@@ -310,11 +314,17 @@ namespace Studio.Api.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_areas");
 
+                    b.HasIndex("ParentId")
+                        .HasDatabaseName("ix_areas_parent_id");
+
                     b.HasIndex("ProjectId", "Name")
                         .IsUnique()
                         .HasDatabaseName("ix_areas_project_id_name");
 
-                    b.ToTable("areas", (string)null);
+                    b.ToTable("areas", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_areas_no_self_parent", "parent_id IS NULL OR parent_id <> id");
+                        });
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.Artifact", b =>
@@ -1697,6 +1707,10 @@ namespace Studio.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("archived_at");
 
+                    b.Property<long>("ContentRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("content_revision");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1786,6 +1800,48 @@ namespace Studio.Api.Data.Migrations
                         .HasDatabaseName("ix_memberships_project_id_user_id");
 
                     b.ToTable("memberships", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.ProjectPresence", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid?>("ArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("artifact_id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("label");
+
+                    b.Property<DateTimeOffset>("SeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("seen_at");
+
+                    b.HasKey("ProjectId", "UserId")
+                        .HasName("pk_project_presences");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_project_presences_user_id");
+
+                    b.HasIndex("ProjectId", "SeenAt")
+                        .HasDatabaseName("ix_project_presences_project_id_seen_at");
+
+                    b.ToTable("project_presences", (string)null);
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.ProjectSnapshot", b =>
@@ -2282,6 +2338,12 @@ namespace Studio.Api.Data.Migrations
 
             modelBuilder.Entity("Studio.Api.Domain.Area", b =>
                 {
+                    b.HasOne("Studio.Api.Domain.Area", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_areas_areas_parent_id");
+
                     b.HasOne("Studio.Api.Domain.Project", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
@@ -2718,6 +2780,23 @@ namespace Studio.Api.Data.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.ProjectPresence", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_presences_projects_project_id");
+
+                    b.HasOne("Studio.Api.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_presences_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.ProjectSnapshot", b =>

@@ -25,7 +25,7 @@ export function OverviewPage() {
   const recent = more ? data.recent : data.recent.slice(0, 5)
   const longDescription = (project.description?.length ?? 0) > 180
   const review = (packages.data ?? []).filter((item) => item.status === 'InPruefung')
-  const areaCards = (areas.data ?? []).slice(0, 8)
+  const areaCards = (areas.data ?? []).filter((area) => !area.parentId).slice(0, 8)
   const stock = [
     { label: 'Anforderungen', count: data.requirementCount, href: `/projekte/${project.id}/anforderungen` },
     { label: 'Prozesse', count: data.processCount, href: `/projekte/${project.id}/prozesse` },
@@ -148,7 +148,7 @@ export function OverviewPage() {
                   <li key={area.id}>
                     <Link className="block rounded-xl border border-line bg-card px-3 py-2 hover:bg-background" to={`/projekte/${project.id}/bereiche/${area.id}`}>
                       <span className="block truncate font-medium">{area.name}</span>
-                      <span className="block truncate text-xs text-muted">{area.diagramCount} {area.diagramCount === 1 ? 'Diagramm' : 'Diagramme'}</span>
+                      <span className="block truncate text-xs text-muted">{area.diagramCount} {area.diagramCount === 1 ? 'Diagramm' : 'Diagramme'}{(areas.data ?? []).filter((item) => item.parentId === area.id).length > 0 ? ` · ${(areas.data ?? []).filter((item) => item.parentId === area.id).length} Unterbereiche` : ''}</span>
                     </Link>
                   </li>
                 ))}

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
-import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
+import { ConflictBanner, EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
 import { Badge, Button, Field, Input, Modal, PageHeader, Select, Textarea } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
@@ -14,6 +14,7 @@ import { UsagePanel } from '../usage/UsagePanel'
 import type { ProjectOutlet } from '../shell/Shell'
 import { AcceptancePanel } from '../plan/PlanPages'
 import { SourcesPanel } from '../plan/SourcesPanel'
+import { AreaOptions } from '../areas/AreaOptions'
 
 const statuses: RequirementStatus[] = ['Offen', 'InBearbeitung', 'Erledigt', 'Zurueckgestellt']
 const priorities: RequirementPriority[] = ['Niedrig', 'Mittel', 'Hoch', 'Kritisch']
@@ -197,11 +198,10 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
     enabled: deleteOpen,
   })
   useEffect(() => {
-    if (!dirty) {
-      setDraft(initial)
-      setVersion(initial.version)
-    }
-  }, [initial, dirty])
+    if (dirty || initial.version <= version) return
+    setDraft(initial)
+    setVersion(initial.version)
+  }, [dirty, initial, version])
   const autosave = useAutosave({
     enabled: canWrite,
     dirty,
@@ -248,13 +248,7 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
           <SaveBadge state={autosave.state} />
         </div>
         {autosave.state === 'conflict' ? (
-          <div className="rounded-md border border-warning bg-card p-3 text-sm" role="alert">
-            Der Entwurf wurde zwischenzeitlich gespeichert. Deine lokalen Änderungen bleiben erhalten.
-            <div className="mt-2 flex gap-2">
-              <Button type="button" onClick={() => { setDirty(false); autosave.clearConflict(); void onReload() }}>Serverstand laden</Button>
-              <Button type="button" variant="primary" onClick={() => autosave.retry()}>Erneut speichern</Button>
-            </div>
-          </div>
+          <ConflictBanner onReload={() => { setDirty(false); autosave.clearConflict(); void onReload() }} onKeep={() => autosave.retry()} />
         ) : null}
         {autosave.state === 'error' ? (
           <p role="alert" className="text-sm text-danger">Die Änderung konnte nicht gespeichert werden. <button className="underline" type="button" onClick={() => autosave.retry()}>Erneut versuchen</button></p>
@@ -276,7 +270,7 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
         <Field label="Fachbereich">
           <Select aria-label="Fachbereich" value={draft.areaId ?? ''} disabled={!canWrite} onChange={(event) => update({ ...draft, areaId: event.target.value || null })}>
             <option value="">Ohne Bereich</option>
-            {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+            <AreaOptions areas={areas.data} />
           </Select>
         </Field>
         <Field label="Tags" hint="Kommagetrennt, 2 bis 30 Zeichen">

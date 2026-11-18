@@ -7,6 +7,7 @@ import { api, errorText } from '../../lib/api'
 import { requirementStatusLabel } from '../../lib/labels'
 import type { Area, CoverageCell, CoverageRef, CoverageResult, CoverageState, RequirementStatus } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
+import { AreaOptions } from '../areas/AreaOptions'
 
 const statuses: RequirementStatus[] = ['Offen', 'InBearbeitung', 'Erledigt', 'Zurueckgestellt']
 const gaps = [
@@ -72,7 +73,7 @@ export function CoveragePage() {
       <div className="flex flex-wrap items-end gap-2">
         <Select className="studio-inline" aria-label="Fachbereich" value={bereich} onChange={(event) => setFilter('bereich', event.target.value)}>
           <option value="">Alle Fachbereiche</option>
-          {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+          <AreaOptions areas={areas.data} />
         </Select>
         <Select className="studio-inline" aria-label="Anforderungsstatus" value={status} onChange={(event) => setFilter('status', event.target.value)}>
           <option value="">Alle Status</option>

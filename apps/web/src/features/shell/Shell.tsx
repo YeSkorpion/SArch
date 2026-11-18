@@ -24,7 +24,9 @@ import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'reac
 import { Brand } from '../../components/Brand'
 import { Button, Hint, Input, Menu, MenuItem, Select } from '../../components/ui'
 import { ErrorState, Loading } from '../../components/states'
+import { childAreas, rootAreas } from '../../lib/areas'
 import { api } from '../../lib/api'
+import { presenceArtifact, useTogether } from '../../lib/together'
 import { artifactHref, roleLabel, searchHitMeta, searchTypeLabel } from '../../lib/labels'
 import { readFlag, rememberFlag } from '../../lib/scroll'
 import type { Area, Diagram, Document, Project, SavedView, SearchHit, User } from '../../lib/types'
@@ -84,7 +86,10 @@ export function Shell({ user }: { user: User }) {
   })
   const href = `${location.pathname}${location.search}`
   const label = tabLabel(location.pathname, project.data?.name ?? 'Projekt', diagram.data, areas.data?.find((item) => item.id === areaId)?.name, page.data?.title)
+  const artifactId = presenceArtifact(location.pathname)
+  const people = useTogether(projectId, label, artifactId)
   const tabs = useWorkspaceTabs(projectId ?? '', href, label)
+  const samePage = artifactId ? people.filter((person) => person.artifactId === artifactId) : []
 
   if (!projectId) return null
   if (project.isLoading) return <Loading />
@@ -135,6 +140,15 @@ export function Shell({ user }: { user: User }) {
             ))}
           </nav>
           <SearchBox projectId={current.id} onOpenPalette={(opener) => { paletteReturn.current = opener; setPaletteOpen(true) }} />
+          {people.length > 0 ? (
+            <div className="flex items-center gap-1" aria-label="Weitere Personen">
+              {people.map((person) => (
+                <span key={person.userId} className="grid h-8 min-w-8 place-items-center rounded-full bg-card px-1.5 text-xs font-semibold ring-1 ring-line" title={`${person.name}, ${person.label}`} aria-label={`${person.name}, ${person.label}`}>
+                  {accountInitials(person.name)}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <Button
             size="sm"
             type="button"
@@ -152,6 +166,7 @@ export function Shell({ user }: { user: User }) {
         </header>
         <WorkspaceTabs tabs={tabs.tabs} activeId={tabs.activeId} onSelect={tabs.select} onClose={tabs.close} onNew={() => tabs.openNew(`/projekte/${current.id}`)} />
         {current.isArchived ? <p className="bg-warning/15 px-4 py-2 text-sm">Dieses Projekt ist archiviert und kann nur gelesen werden.</p> : null}
+        {samePage.length > 0 ? <p className="bg-warning/15 px-4 py-2 text-sm">{togetherNames(samePage.map((person) => person.name))} diese Seite ebenfalls. Ungespeicherte Änderungen bleiben bei dir.</p> : null}
         {navOpen ? (
           <div className="fixed inset-0 z-40 lg:hidden">
             <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Navigation schließen" onClick={() => setNavOpen(false)} />
@@ -172,6 +187,11 @@ export function Shell({ user }: { user: User }) {
       <CommandPalette projectId={current.id} projectName={current.name} open={paletteOpen} onOpenChange={setPaletteOpen} returnFocus={paletteReturn} />
     </div>
   )
+}
+
+function togetherNames(names: string[]) {
+  const shown = names.slice(0, 3).join(' und ')
+  return names.length === 1 ? `${shown} bearbeitet` : `${shown} bearbeiten`
 }
 
 function accountInitials(name: string) {
@@ -237,10 +257,8 @@ function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pa
         </NavLink>
       ))}
       <NavFold id="areas" label="Fachbereiche">
-        {areas.data?.length ? areas.data.map((area) => (
-          <Link key={area.id} className="block rounded-md px-2 py-1.5 text-sm break-words hover:bg-background" to={`/projekte/${projectId}/prozesse?bereich=${area.id}`} onClick={onNavigate}>
-            {area.name}
-          </Link>
+        {areas.data?.length ? rootAreas(areas.data).map((area) => (
+          <AreaNavLink key={area.id} area={area} areas={areas.data ?? []} projectId={projectId} depth={0} onNavigate={onNavigate} />
         )) : <p className="px-2 py-1 text-xs text-muted">Noch keine Bereiche.</p>}
       </NavFold>
       <NavFold id="views" label="Gespeicherte Ansichten" count={views.data?.length}>
@@ -273,6 +291,19 @@ function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pa
         Alle Projekte
       </Link>
     </nav>
+  )
+}
+
+function AreaNavLink({ area, areas, projectId, depth, onNavigate }: { area: Area; areas: Area[]; projectId: string; depth: number; onNavigate?: () => void }) {
+  return (
+    <div>
+      <Link className="block rounded-md py-1.5 pr-2 text-sm break-words hover:bg-background" style={{ paddingLeft: 8 + depth * 12 }} to={`/projekte/${projectId}/prozesse?bereich=${area.id}`} onClick={onNavigate}>
+        {area.name}
+      </Link>
+      {childAreas(areas, area.id).map((child) => (
+        <AreaNavLink key={child.id} area={child} areas={areas} projectId={projectId} depth={depth + 1} onNavigate={onNavigate} />
+      ))}
+    </div>
   )
 }
 

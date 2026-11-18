@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
 import { DiagramSvg, EmptyPreview, PreviewFrame, diagramStepCount, useDiagramPreview, useInView } from '../../components/previews'
-import { Button, ConfirmDialog, Field, Input, Menu, MenuItem, Modal, PageHeader, Textarea } from '../../components/ui'
+import { Button, ConfirmDialog, Field, Input, Menu, MenuItem, Modal, PageHeader, Select, Textarea } from '../../components/ui'
+import { childAreas, descendantIds, rootAreas } from '../../lib/areas'
 import { api, errorText } from '../../lib/api'
 import type { Area, DiagramKind, DiagramSummary, PackageSummary } from '../../lib/types'
+import { AreaOptions } from './AreaOptions'
 import type { ProjectOutlet } from '../shell/Shell'
 
 export function AreasPage() {
@@ -19,14 +21,16 @@ export function AreasPage() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [parentId, setParentId] = useState('')
   const [message, setMessage] = useState('')
   const [term, setTerm] = useState('')
   const [pendingDelete, setPendingDelete] = useState<Area | null>(null)
   const create = useMutation({
-    mutationFn: () => api<Area>(`/api/v1/projects/${project.id}/areas`, { method: 'POST', body: { name, description } }),
+    mutationFn: () => api<Area>(`/api/v1/projects/${project.id}/areas`, { method: 'POST', body: { name, description, parentId: parentId || null } }),
     onSuccess: async () => {
       setName('')
       setDescription('')
+      setParentId('')
       setOpen(false)
       setMessage('Bereich angelegt.')
       await client.invalidateQueries({ queryKey: ['areas', project.id] })
@@ -44,52 +48,48 @@ export function AreasPage() {
   })
   const hasAreas = (areas.data?.length ?? 0) > 0
   const needle = term.trim().toLowerCase()
-  const visible = (areas.data ?? []).filter((area) => !needle || area.name.toLowerCase().includes(needle) || area.description.toLowerCase().includes(needle))
-  const createButton = canWrite ? <Button type="button" variant="primary" onClick={() => { setMessage(''); setOpen(true) }}>Bereich anlegen</Button> : undefined
+  const list = areas.data ?? []
+  const visible = needle
+    ? list.filter((area) => area.name.toLowerCase().includes(needle) || area.description.toLowerCase().includes(needle))
+    : rootAreas(list)
+  const createButton = canWrite ? <Button type="button" variant="primary" onClick={() => { setMessage(''); setParentId(''); setOpen(true) }}>Bereich anlegen</Button> : undefined
 
   return (
     <div className="grid w-full gap-6 px-4 py-6 md:px-6">
-      <PageHeader title="Bereiche" description="Fachbereiche bündeln die Diagramme eines Themas." action={hasAreas ? createButton : undefined} />
+      <PageHeader title="Bereiche" description="Fachbereiche können Unterbereiche haben und bündeln die Diagramme eines Themas." action={hasAreas ? createButton : undefined} />
       {hasAreas ? <Input aria-label="Bereiche suchen" placeholder="Name oder Beschreibung" value={term} onChange={(event) => setTerm(event.target.value)} /> : null}
       {message && !open ? <p className="text-sm" role="status">{message}</p> : null}
       {areas.isLoading ? <Loading /> : null}
       {areas.isError ? <ErrorState error={areas.error} onRetry={() => void areas.refetch()} /> : null}
       {areas.data?.length === 0 ? (
-        <EmptyState title="Keine Bereiche" body="Lege Bereiche wie Bestellung, Versand oder Identität an und ordne die Diagramme dort ein." action={createButton} />
+        <EmptyState title="Keine Bereiche" body="Lege Bereiche wie Bestellung, Versand oder Identität an. Unterbereiche fassen ein Thema weiter auf." action={createButton} />
       ) : null}
       {hasAreas && visible.length === 0 ? <EmptyState title="Keine Treffer" body="Kein Bereich enthält diesen Namen oder diese Beschreibung." action={<Button type="button" onClick={() => setTerm('')}>Suche zurücksetzen</Button>} /> : null}
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((area) => (
-          <li key={area.id} className="relative rounded-xl border border-line bg-card">
-            <Link className="block rounded-xl p-3 pr-12 hover:bg-background" to={`/projekte/${project.id}/bereiche/${area.id}`}>
-              <h2 className="truncate font-medium">{area.name}</h2>
-              {area.description ? <p className="mt-1 line-clamp-2 text-sm text-muted">{area.description}</p> : null}
-              <p className="mt-2 text-xs text-muted">{area.diagramCount} {area.diagramCount === 1 ? 'Diagramm' : 'Diagramme'}</p>
-            </Link>
-            {canWrite ? (
-              <div className="absolute top-2 right-2">
-                <Menu trigger={<button className="grid h-8 w-8 place-items-center rounded-md hover:bg-background" type="button" aria-label={`Aktionen für ${area.name}`}><MoreHorizontal size={16} aria-hidden="true" /></button>}>
-                  <MenuItem onSelect={() => setPendingDelete(area)}>Löschen</MenuItem>
-                </Menu>
-              </div>
-            ) : null}
-          </li>
+          <AreaCard key={area.id} projectId={project.id} area={area} areas={list} nested={!needle} canWrite={canWrite} onDelete={setPendingDelete} />
         ))}
       </ul>
-      <Modal open={open} onOpenChange={setOpen} title="Bereich anlegen">
-        <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
-          <Field label="Name"><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field>
-          <Field label="Beschreibung"><Textarea value={description} onChange={(event) => setDescription(event.target.value)} /></Field>
-          {message && open ? <p className="text-sm" role="alert">{message}</p> : null}
-          {create.isPending ? <p className="text-sm text-muted">Wird gespeichert</p> : null}
-          <Button type="submit" variant="primary" disabled={create.isPending}>Anlegen</Button>
-        </form>
-      </Modal>
+      <AreaDialog
+        open={open}
+        title="Bereich anlegen"
+        areas={list}
+        name={name}
+        description={description}
+        parentId={parentId}
+        message={message}
+        pending={create.isPending}
+        onName={setName}
+        onDescription={setDescription}
+        onParent={setParentId}
+        onClose={() => setOpen(false)}
+        onSubmit={() => create.mutate()}
+      />
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         onOpenChange={(next) => { if (!next) setPendingDelete(null) }}
         title="Bereich löschen"
-        description={pendingDelete ? `„${pendingDelete.name}“ wird gelöscht. Das ist nur möglich, wenn dem Bereich keine Diagramme mehr zugeordnet sind.` : ''}
+        description={pendingDelete ? `„${pendingDelete.name}“ wird gelöscht. Das ist nur möglich, wenn keine Diagramme und keine Unterbereiche mehr zugeordnet sind.` : ''}
         confirmLabel="Löschen"
         pending={remove.isPending}
         onConfirm={() => pendingDelete && remove.mutate(pendingDelete.id)}
@@ -99,8 +99,9 @@ export function AreasPage() {
 }
 
 export function AreaDetailPage() {
-  const { project } = useOutletContext<ProjectOutlet>()
+  const { project, canWrite } = useOutletContext<ProjectOutlet>()
   const { areaId = '' } = useParams()
+  const client = useQueryClient()
   const areas = useQuery({ queryKey: ['areas', project.id], queryFn: () => api<Area[]>(`/api/v1/projects/${project.id}/areas`) })
   const processes = useQuery({
     queryKey: ['diagrams', project.id, 'Process', areaId, ''],
@@ -111,20 +112,105 @@ export function AreaDetailPage() {
     queryFn: () => api<DiagramSummary[]>(`/api/v1/projects/${project.id}/diagrams?kind=System&areaId=${areaId}`),
   })
   const packages = useQuery({ queryKey: ['packages', project.id], queryFn: () => api<PackageSummary[]>(`/api/v1/projects/${project.id}/packages`) })
-  const area = areas.data?.find((item) => item.id === areaId)
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [parentDraft, setParentDraft] = useState<string | null>(null)
+  const [message, setMessage] = useState('')
+  const list = areas.data ?? []
+  const area = list.find((item) => item.id === areaId)
+  const children = area ? childAreas(list, area.id) : []
+  const parentValue = parentDraft ?? area?.parentId ?? ''
+  const blocked = area ? descendantIds(list, area.id) : new Set<string>()
+  const create = useMutation({
+    mutationFn: () => api<Area>(`/api/v1/projects/${project.id}/areas`, { method: 'POST', body: { name, description, parentId: areaId } }),
+    onSuccess: async () => {
+      setName('')
+      setDescription('')
+      setOpen(false)
+      setMessage('Unterbereich angelegt.')
+      await client.invalidateQueries({ queryKey: ['areas', project.id] })
+    },
+    onError: (error) => setMessage(errorText(error)),
+  })
+  const move = useMutation({
+    mutationFn: () => api<Area>(`/api/v1/projects/${project.id}/areas/${areaId}`, { method: 'PUT', body: { name: area?.name ?? '', description: area?.description ?? '', parentId: parentValue || null } }),
+    onSuccess: async () => {
+      setParentDraft(null)
+      setMessage('Überordnung gespeichert.')
+      await client.invalidateQueries({ queryKey: ['areas', project.id] })
+    },
+    onError: (error) => setMessage(errorText(error)),
+  })
   if (areas.isLoading) return <Loading />
   if (areas.isError) return <div className="p-6"><ErrorState error={areas.error} onRetry={() => void areas.refetch()} /></div>
   if (!area) return <div className="p-6"><EmptyState title="Bereich nicht gefunden" body="Der Bereich gehört nicht zu diesem Projekt." action={<Button asChild><Link to={`/projekte/${project.id}/bereiche`}>Alle Bereiche</Link></Button>} /></div>
   const areaPackages = (packages.data ?? []).filter((item) => item.areaId === area.id)
+  const ancestors = ancestorAreas(list, area)
   return (
     <div className="grid w-full gap-6 px-4 py-6 md:px-6">
       <header>
-        <Link className="text-sm text-muted underline-offset-2 hover:underline" to={`/projekte/${project.id}/bereiche`}>Alle Bereiche</Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{area.name}</h1>
+        <p className="text-sm text-muted">
+          <Link className="underline-offset-2 hover:underline" to={`/projekte/${project.id}/bereiche`}>Alle Bereiche</Link>
+          {ancestors.map((item) => (
+            <span key={item.id}>
+              {' / '}
+              <Link className="underline-offset-2 hover:underline" to={`/projekte/${project.id}/bereiche/${item.id}`}>{item.name}</Link>
+            </span>
+          ))}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{area.name}</h1>
+          {canWrite ? <Button type="button" variant="primary" onClick={() => { setMessage(''); setOpen(true) }}>Unterbereich anlegen</Button> : null}
+        </div>
         {area.description ? <p className="mt-2 max-w-3xl text-sm text-muted">{area.description}</p> : null}
-        <p className="mt-2 text-xs text-muted">{area.diagramCount} {area.diagramCount === 1 ? 'Diagramm' : 'Diagramme'}</p>
+        <p className="mt-2 text-xs text-muted">{area.diagramCount} {area.diagramCount === 1 ? 'Diagramm' : 'Diagramme'} · {children.length} {children.length === 1 ? 'Unterbereich' : 'Unterbereiche'}</p>
         <Link className="mt-3 inline-block text-sm text-accent underline-offset-2 hover:underline" to={`/projekte/${project.id}/abdeckung?bereich=${area.id}`}>Planungsabdeckung</Link>
       </header>
+      {message && !open ? <p className="text-sm" role="status">{message}</p> : null}
+      <section>
+        <h2 className="text-lg font-semibold">Unterbereiche</h2>
+        {children.length === 0 ? <p className="mt-2 text-sm text-muted">Noch kein Unterbereich.</p> : (
+          <ul className="mt-2 divide-y divide-line rounded-xl border border-line bg-card">
+            {children.map((child) => (
+              <li key={child.id}>
+                <Link className="block px-3 py-2 hover:bg-background" to={`/projekte/${project.id}/bereiche/${child.id}`}>
+                  <span className="font-medium">{child.name}</span>
+                  <span className="block text-xs text-muted">{child.diagramCount} {child.diagramCount === 1 ? 'Diagramm' : 'Diagramme'}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      {canWrite ? (
+        <form className="grid max-w-xl gap-3 rounded-xl border border-line bg-card p-4" onSubmit={(event) => { event.preventDefault(); move.mutate() }}>
+          <Field label="Übergeordneter Bereich">
+            <Select aria-label="Übergeordneter Bereich" value={parentValue} onChange={(event) => setParentDraft(event.target.value)}>
+              <option value="">Keiner</option>
+              <AreaOptions areas={list.filter((item) => item.id !== area.id && !blocked.has(item.id))} />
+            </Select>
+          </Field>
+          <Button type="submit" disabled={move.isPending || parentValue === (area.parentId ?? '')}>Speichern</Button>
+          {move.isError ? <p role="alert" className="text-sm text-danger">{errorText(move.error)}</p> : null}
+        </form>
+      ) : null}
+      <AreaDialog
+        open={open}
+        title="Unterbereich anlegen"
+        areas={list}
+        name={name}
+        description={description}
+        parentId={area.id}
+        parentLocked
+        message={message}
+        pending={create.isPending}
+        onName={setName}
+        onDescription={setDescription}
+        onParent={() => undefined}
+        onClose={() => setOpen(false)}
+        onSubmit={() => create.mutate()}
+      />
       {processes.isError ? <ErrorState error={processes.error} onRetry={() => void processes.refetch()} /> : null}
       {systems.isError ? <ErrorState error={systems.error} onRetry={() => void systems.refetch()} /> : null}
       <ContentGroup title="Prozesse" items={processes.data ?? []} projectId={project.id} kind="Process" allHref={`/projekte/${project.id}/prozesse?bereich=${area.id}`} allLabel="Alle Prozesse ansehen" loading={processes.isLoading} />
@@ -145,10 +231,113 @@ export function AreaDetailPage() {
           {areaPackages.length > 4 ? <Link className="mt-2 inline-block text-sm text-accent underline-offset-2 hover:underline" to={`/projekte/${project.id}/aenderungen`}>Alle Änderungspakete ansehen</Link> : null}
         </section>
       ) : null}
-      {!processes.isLoading && !systems.isLoading && (processes.data?.length ?? 0) === 0 && (systems.data?.length ?? 0) === 0 && areaPackages.length === 0 ? (
-        <EmptyState title="Noch nichts zugeordnet" body="Diagramme lassen sich in den Modulübersichten diesem Bereich zuordnen." />
+      {!processes.isLoading && !systems.isLoading && (processes.data?.length ?? 0) === 0 && (systems.data?.length ?? 0) === 0 && areaPackages.length === 0 && children.length === 0 ? (
+        <EmptyState title="Noch nichts zugeordnet" body="Lege einen Unterbereich an oder ordne Diagramme in den Modulübersichten diesem Bereich zu." />
       ) : null}
     </div>
+  )
+}
+
+function ancestorAreas(areas: Area[], area: Area) {
+  const chain: Area[] = []
+  let parentId = area.parentId
+  const seen = new Set([area.id])
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId)
+    const parent = areas.find((item) => item.id === parentId)
+    if (!parent) break
+    chain.unshift(parent)
+    parentId = parent.parentId
+  }
+  return chain
+}
+
+function AreaCard({ projectId, area, areas, nested, canWrite, onDelete }: { projectId: string; area: Area; areas: Area[]; nested: boolean; canWrite: boolean; onDelete: (area: Area) => void }) {
+  const children = nested ? childAreas(areas, area.id) : []
+  return (
+    <li className="rounded-xl border border-line bg-card">
+      <div className="relative">
+        <AreaLink projectId={projectId} area={area} heading />
+        {canWrite ? <AreaMenu area={area} onDelete={onDelete} /> : null}
+      </div>
+      {children.length > 0 ? (
+        <ul className="grid gap-1 border-t border-line px-3 py-2">
+          {children.map((child) => <AreaBranch key={child.id} projectId={projectId} area={child} areas={areas} canWrite={canWrite} onDelete={onDelete} />)}
+        </ul>
+      ) : null}
+    </li>
+  )
+}
+
+function AreaBranch({ projectId, area, areas, canWrite, onDelete }: { projectId: string; area: Area; areas: Area[]; canWrite: boolean; onDelete: (area: Area) => void }) {
+  const children = childAreas(areas, area.id)
+  return (
+    <li>
+      <div className="relative">
+        <AreaLink projectId={projectId} area={area} />
+        {canWrite ? <AreaMenu area={area} onDelete={onDelete} /> : null}
+      </div>
+      {children.length > 0 ? (
+        <ul className="mt-1 grid gap-1 border-l border-line pl-3">
+          {children.map((child) => <AreaBranch key={child.id} projectId={projectId} area={child} areas={areas} canWrite={canWrite} onDelete={onDelete} />)}
+        </ul>
+      ) : null}
+    </li>
+  )
+}
+
+function AreaLink({ projectId, area, heading = false }: { projectId: string; area: Area; heading?: boolean }) {
+  return (
+    <Link className={`block rounded-xl hover:bg-background ${heading ? 'p-3 pr-12' : 'px-2 py-1.5 pr-10'}`} to={`/projekte/${projectId}/bereiche/${area.id}`}>
+      {heading ? <h2 className="truncate font-medium">{area.name}</h2> : <span className="block truncate text-sm font-medium">{area.name}</span>}
+      {heading && area.description ? <p className="mt-1 line-clamp-2 text-sm text-muted">{area.description}</p> : null}
+      <p className={`${heading ? 'mt-2' : 'mt-0.5'} text-xs text-muted`}>{area.diagramCount} {area.diagramCount === 1 ? 'Diagramm' : 'Diagramme'}</p>
+    </Link>
+  )
+}
+
+function AreaMenu({ area, onDelete }: { area: Area; onDelete: (area: Area) => void }) {
+  return (
+    <div className="absolute top-2 right-2">
+      <Menu trigger={<button className="grid h-8 w-8 place-items-center rounded-md hover:bg-background" type="button" aria-label={`Aktionen für ${area.name}`}><MoreHorizontal size={16} aria-hidden="true" /></button>}>
+        <MenuItem onSelect={() => onDelete(area)}>Löschen</MenuItem>
+      </Menu>
+    </div>
+  )
+}
+
+function AreaDialog({ open, title, areas, name, description, parentId, parentLocked = false, message, pending, onName, onDescription, onParent, onClose, onSubmit }: {
+  open: boolean
+  title: string
+  areas: Area[]
+  name: string
+  description: string
+  parentId: string
+  parentLocked?: boolean
+  message: string
+  pending: boolean
+  onName: (value: string) => void
+  onDescription: (value: string) => void
+  onParent: (value: string) => void
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  return (
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose() }} title={title}>
+      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
+        <Field label="Name"><Input required value={name} onChange={(event) => onName(event.target.value)} /></Field>
+        <Field label="Beschreibung"><Textarea value={description} onChange={(event) => onDescription(event.target.value)} /></Field>
+        <Field label="Übergeordneter Bereich">
+          <Select aria-label="Übergeordneter Bereich" value={parentId} disabled={parentLocked} onChange={(event) => onParent(event.target.value)}>
+            <option value="">Keiner</option>
+            <AreaOptions areas={areas} />
+          </Select>
+        </Field>
+        {message && open ? <p className="text-sm" role="alert">{message}</p> : null}
+        {pending ? <p className="text-sm text-muted">Wird gespeichert</p> : null}
+        <Button type="submit" variant="primary" disabled={pending}>Anlegen</Button>
+      </form>
+    </Modal>
   )
 }
 

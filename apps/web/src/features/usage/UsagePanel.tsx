@@ -5,6 +5,7 @@ import { Select } from '../../components/ui'
 import { api } from '../../lib/api'
 import { artifactHref, searchTypeLabel } from '../../lib/labels'
 import type { Area, ArtifactReviewComment, Usage, UsageHit } from '../../lib/types'
+import { AreaOptions } from '../areas/AreaOptions'
 
 const types = ['', 'requirement', 'node', 'screen', 'component', 'decision', 'document', 'process', 'system']
 
@@ -22,7 +23,7 @@ export function UsagePanel({ projectId, artifactId, title, heading = true }: { p
         <Select className="studio-inline" aria-label="Auswirkungen nach Bereich filtern" value={area} onChange={(event) => setArea(event.target.value)}>
           <option value="">Alle Bereiche</option>
           <option value="none">Ohne Bereich</option>
-          {areas.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          <AreaOptions areas={areas.data} />
         </Select>
       </div>
       <UsageLevel projectId={projectId} artifactId={artifactId} via={[]} type={type} area={area} parentTitle={title} />

@@ -6,6 +6,7 @@ import { Button, Field, Input, Select } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import type { Area, CatalogTable, DocumentListItem } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
+import { AreaOptions } from '../areas/AreaOptions'
 
 function blank(value: string) {
   return value.trim() ? value : 'Noch nicht erfasst'
@@ -75,7 +76,7 @@ export function CatalogPage() {
           <Field label="Fachbereich">
             <Select aria-label="Fachbereich der Tabelle" value={areaId} onChange={(event) => setAreaId(event.target.value)}>
               <option value="">Ohne Bereich</option>
-              {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+              <AreaOptions areas={areas.data} />
             </Select>
           </Field>
           <Field label="Dokumentationsseite">

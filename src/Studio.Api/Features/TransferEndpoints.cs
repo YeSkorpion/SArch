@@ -27,7 +27,7 @@ public static partial class TransferEndpoints
             ExportedAt = clock.GetUtcNow(),
             Project = new TransferProject { Name = project.Name, Description = project.Description },
             Areas = await db.Areas.AsNoTracking().Where(item => item.ProjectId == projectId).OrderBy(item => item.SortOrder)
-                .Select(item => new TransferArea { Id = item.Id, Name = item.Name, Description = item.Description, SortOrder = item.SortOrder }).ToListAsync(ct),
+                .Select(item => new TransferArea { Id = item.Id, ParentId = item.ParentId, Name = item.Name, Description = item.Description, SortOrder = item.SortOrder }).ToListAsync(ct),
             Requirements = await db.Requirements.AsNoTracking().Where(item => item.ProjectId == projectId).OrderBy(item => item.Key)
                 .Select(item => new TransferRequirement { Id = item.ArtifactId, Key = item.Key, Title = item.Title, Description = item.Description, Status = item.Status.ToString(), Priority = item.Priority.ToString(), Tags = item.Tags }).ToListAsync(ct),
             Diagrams = await db.Diagrams.AsNoTracking().Where(item => item.ProjectId == projectId).OrderBy(item => item.Name)
@@ -204,6 +204,12 @@ public static partial class TransferEndpoints
         }
 
         await db.SaveChangesAsync(ct);
+        foreach (var item in file.Areas.Where(entry => entry.ParentId is not null))
+        {
+            var area = await db.Areas.FirstAsync(entry => entry.Id == item.Id, ct);
+            area.ParentId = item.ParentId;
+        }
+
         foreach (var item in file.Nodes)
         {
             db.Artifacts.Add(NewArtifact(project.Id, item.Id, ArtifactType.DiagramNode, now));
@@ -473,6 +479,13 @@ public static partial class TransferEndpoints
         foreach (var item in file.Navigations)
         {
             if (!screens.Contains(item.SourceScreenId) || !screens.Contains(item.TargetScreenId)) Add("Eine Navigation verweist auf einen fehlenden Screen.");
+        }
+
+        var areaParents = file.Areas.ToDictionary(item => item.Id, item => item.ParentId);
+        foreach (var item in file.Areas)
+        {
+            if (item.ParentId is Guid parent && !areas.Contains(parent)) Add("Ein Unterbereich verweist auf einen fehlenden Bereich.");
+            else if (AreaRules.CreatesCycle(item.Id, item.ParentId, areaParents)) Add("Ein Bereich kann nicht unter einen seiner eigenen Unterbereiche gelegt werden.");
         }
 
         foreach (var item in file.Documents)

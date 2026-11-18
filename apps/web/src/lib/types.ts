@@ -171,7 +171,9 @@ export type AffectedFlow = {
   rationale: string | null
 }
 export type SharedComponent = { componentId: string; name: string; flows: AffectedFlow[] }
-export type Area = { id: string; name: string; description: string; sortOrder: number; diagramCount: number }
+export type Area = { id: string; name: string; description: string; sortOrder: number; diagramCount: number; parentId: string | null }
+export type PresencePerson = { userId: string; name: string; label: string; artifactId: string | null }
+export type Together = { revision: number; people: PresencePerson[] }
 export type SavedView = {
   id: string
   name: string

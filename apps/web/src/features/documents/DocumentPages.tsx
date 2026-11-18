@@ -13,7 +13,7 @@ import { Bold, ChevronDown, ChevronRight, Code, FileText, Heading1, Heading2, He
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
-import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
+import { ConflictBanner, EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
 import { Button, Field, Input, Menu, MenuItem, Modal, Select } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
@@ -396,6 +396,14 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
       setDirty(true)
     },
   })
+  useEffect(() => {
+    if (!editor || dirty || initial.version <= version) return
+    setTitle(initial.title)
+    setStatus(initial.status)
+    setContent(initial.contentJson)
+    setVersion(initial.version)
+    editor.commands.setContent(JSON.parse(initial.contentJson) as object, { emitUpdate: false })
+  }, [dirty, editor, initial, version])
   const autosave = useAutosave({
     enabled: canWrite,
     dirty,
@@ -479,10 +487,7 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
           </Field>
         ) : null}
         {autosave.state === 'conflict' ? (
-          <div role="alert" className="rounded-md border border-warning p-3 text-sm">
-            Der Entwurf wurde zwischenzeitlich gespeichert. Deine lokalen Änderungen bleiben erhalten.
-            <Button className="ml-2" size="sm" type="button" onClick={() => { setDirty(false); autosave.clearConflict(); void reload() }}>Serverstand laden</Button>
-          </div>
+          <ConflictBanner onReload={() => { setDirty(false); autosave.clearConflict(); void reload() }} onKeep={() => autosave.retry()} />
         ) : null}
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 rounded-xl border border-line bg-nav p-1.5" role="toolbar" aria-label="Textformatierung">
           <FormatButton label="Große Überschrift" pressed={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 size={15} /></FormatButton>

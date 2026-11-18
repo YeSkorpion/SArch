@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
 import { DiagramSvg, EmptyPreview, PreviewFrame, diagramStepCount, useDiagramPreview, useInView } from '../../components/previews'
-import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
+import { ConflictBanner, EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
 import { Badge, Button, Field, Input, Menu, MenuItem, Modal, Select, Textarea } from '../../components/ui'
 import { ApiError, api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
@@ -33,6 +33,7 @@ import { ImpactList } from '../requirements/RequirementsPages'
 import type { ProjectOutlet } from '../shell/Shell'
 import { ComponentSchema, schemaCountLabel } from './ComponentSchema'
 import { SourcesPanel } from '../plan/SourcesPanel'
+import { AreaOptions } from '../areas/AreaOptions'
 import '@xyflow/react/dist/style.css'
 
 type NodeData = {
@@ -132,7 +133,7 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
         <Select className="studio-inline" aria-label="Bereich filtern" value={area} onChange={(event) => filter({ bereich: event.target.value })}>
           <option value="">Alle Bereiche</option>
           <option value="none">Ohne Bereich</option>
-          {areas.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          <AreaOptions areas={areas.data} />
         </Select>
         {canWrite ? <Button size="sm" type="button" onClick={() => setViewOpen(true)}>Ansicht speichern</Button> : null}
         {filtered ? <Button size="sm" type="button" variant="ghost" onClick={() => filter({ bereich: '', q: '' })}>Filter zurücksetzen</Button> : null}
@@ -201,7 +202,7 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
           <Field label="Bereich">
             <Select value={areaId} onChange={(event) => setAreaId(event.target.value)}>
               <option value="">Ohne Bereich</option>
-              {areas.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              <AreaOptions areas={areas.data} />
             </Select>
           </Field>
           {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
@@ -359,16 +360,14 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
   })
 
   useEffect(() => {
-    if (dirty) return
+    if (dirty || initial.version <= version) return
     setNodes(initial.nodes.map((node) => toNode(node, focusId)))
     setEdges(initial.edges.map(toEdge))
     setName(initial.name)
     setDescription(initial.description)
     setAreaId(initial.areaId)
     setVersion(initial.version)
-    // Nur anwenden, wenn der Serverstand neu geladen wurde. Ein abgeschlossenes Speichern darf den Entwurf nicht zurücksetzen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial])
+  }, [dirty, focusId, initial, version])
 
   const signature = JSON.stringify({ name, description, areaId, nodes, edges })
   const autosave = useAutosave({
@@ -530,7 +529,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
           <Input className="h-9 min-w-0 flex-1 sm:max-w-xs" aria-label="Diagrammname" value={name} disabled={!canWrite} onChange={(event) => { setName(event.target.value); setDirty(true) }} />
           <Select className="studio-inline max-w-40" aria-label="Bereich" value={areaId ?? ''} disabled={!canWrite} onChange={(event) => { setAreaId(event.target.value || null); setDirty(true) }}>
             <option value="">Ohne Bereich</option>
-            {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+            <AreaOptions areas={areas.data} />
           </Select>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -548,10 +547,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
         </div>
       </div>
       {autosave.state === 'conflict' ? (
-        <div className="flex flex-wrap items-center gap-2 border-b border-warning px-3 py-2 text-sm" role="alert">
-          Der Entwurf wurde zwischenzeitlich gespeichert. Deine lokalen Änderungen bleiben erhalten.
-          <Button size="sm" type="button" onClick={() => { setDirty(false); autosave.clearConflict(); void reload() }}>Serverstand laden</Button>
-        </div>
+        <ConflictBanner onReload={() => { setDirty(false); autosave.clearConflict(); void reload() }} onKeep={() => autosave.retry()} />
       ) : null}
       {message ? <p role="alert" className="px-3 py-2 text-sm text-danger">{message}</p> : null}
       <div className="relative flex min-h-0 flex-1">

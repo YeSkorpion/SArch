@@ -13,9 +13,20 @@ public sealed class Project
     public bool IsArchived { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }
     public int Version { get; set; } = 1;
+    public long ContentRevision { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public List<ProjectMembership> Memberships { get; set; } = [];
+}
+
+public sealed class ProjectPresence
+{
+    public Guid ProjectId { get; set; }
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = "";
+    public string Label { get; set; } = "";
+    public Guid? ArtifactId { get; set; }
+    public DateTimeOffset SeenAt { get; set; }
 }
 
 public sealed class ProjectMembership
@@ -202,6 +213,7 @@ public sealed class Area
 {
     public Guid Id { get; set; }
     public Guid ProjectId { get; set; }
+    public Guid? ParentId { get; set; }
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     public int SortOrder { get; set; }

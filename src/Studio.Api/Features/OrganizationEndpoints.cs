@@ -28,7 +28,7 @@ public static class OrganizationEndpoints
             .Select(group => new { Id = group.Key, Count = group.Count() })
             .ToListAsync(ct);
         var byId = counts.ToDictionary(item => item.Id!.Value, item => item.Count);
-        return Results.Ok(areas.Select(item => new AreaResponse(item.Id, item.Name, item.Description, item.SortOrder, byId.GetValueOrDefault(item.Id))).ToList());
+        return Results.Ok(areas.Select(item => new AreaResponse(item.Id, item.Name, item.Description, item.SortOrder, byId.GetValueOrDefault(item.Id), item.ParentId)).ToList());
     }
 
     private static async Task<IResult> CreateArea(ProjectGuard guard, AppDbContext db, TimeProvider clock, Guid projectId, SaveAreaRequest body, HttpContext http, CancellationToken ct)
@@ -51,12 +51,18 @@ public static class OrganizationEndpoints
             return Problems.Conflict(http, "Ein Bereich mit diesem Namen besteht bereits.", "duplicate");
         }
 
+        if (await AssignParent(db, http, projectId, null, body.ParentId, ct) is IResult parentError)
+        {
+            return parentError;
+        }
+
         var now = clock.GetUtcNow();
         var sort = await db.Areas.Where(item => item.ProjectId == projectId).Select(item => (int?)item.SortOrder).MaxAsync(ct) ?? 0;
         var area = new Area
         {
             Id = Guid.CreateVersion7(),
             ProjectId = projectId,
+            ParentId = body.ParentId,
             Name = name,
             Description = body.Description?.Trim() ?? "",
             SortOrder = sort + 1,
@@ -65,7 +71,7 @@ public static class OrganizationEndpoints
         };
         db.Areas.Add(area);
         var error = await DbSave.SaveAsync(db, http, ct);
-        return error ?? Results.Created($"/api/v1/projects/{projectId}/areas/{area.Id}", new AreaResponse(area.Id, area.Name, area.Description, area.SortOrder, 0));
+        return error ?? Results.Created($"/api/v1/projects/{projectId}/areas/{area.Id}", new AreaResponse(area.Id, area.Name, area.Description, area.SortOrder, 0, area.ParentId));
     }
 
     private static async Task<IResult> UpdateArea(ProjectGuard guard, AppDbContext db, TimeProvider clock, Guid projectId, Guid areaId, SaveAreaRequest body, HttpContext http, CancellationToken ct)
@@ -94,8 +100,14 @@ public static class OrganizationEndpoints
             return Problems.Conflict(http, "Ein Bereich mit diesem Namen besteht bereits.", "duplicate");
         }
 
+        if (await AssignParent(db, http, projectId, areaId, body.ParentId, ct) is IResult parentError)
+        {
+            return parentError;
+        }
+
         area.Name = name;
         area.Description = body.Description?.Trim() ?? "";
+        area.ParentId = body.ParentId;
         area.UpdatedAt = clock.GetUtcNow();
         var error = await DbSave.SaveAsync(db, http, ct);
         if (error is not null)
@@ -104,7 +116,7 @@ public static class OrganizationEndpoints
         }
 
         var count = await db.Diagrams.CountAsync(item => item.AreaId == area.Id, ct);
-        return Results.Ok(new AreaResponse(area.Id, area.Name, area.Description, area.SortOrder, count));
+        return Results.Ok(new AreaResponse(area.Id, area.Name, area.Description, area.SortOrder, count, area.ParentId));
     }
 
     private static async Task<IResult> DeleteArea(ProjectGuard guard, AppDbContext db, Guid projectId, Guid areaId, HttpContext http, CancellationToken ct)
@@ -119,6 +131,11 @@ public static class OrganizationEndpoints
         if (area is null)
         {
             return Problems.NotFound(http);
+        }
+
+        if (await db.Areas.AnyAsync(item => item.ProjectId == projectId && item.ParentId == areaId, ct))
+        {
+            return Problems.Conflict(http, "In diesem Bereich liegen noch Unterbereiche. Verschiebe oder lösche sie zuerst.", "blocked");
         }
 
         if (await db.Diagrams.AnyAsync(item => item.AreaId == areaId, ct))
@@ -254,6 +271,35 @@ public static class OrganizationEndpoints
         db.SavedViews.Remove(view);
         var error = await DbSave.SaveAsync(db, http, ct);
         return error ?? Results.NoContent();
+    }
+
+    private static async Task<IResult?> AssignParent(AppDbContext db, HttpContext http, Guid projectId, Guid? areaId, Guid? parentId, CancellationToken ct)
+    {
+        if (parentId is null)
+        {
+            return null;
+        }
+
+        if (parentId == areaId)
+        {
+            return Problems.BadRequest(http, "Ein Bereich kann nicht unter sich selbst liegen.");
+        }
+
+        if (!await db.Areas.AnyAsync(item => item.ProjectId == projectId && item.Id == parentId, ct))
+        {
+            return Problems.BadRequest(http, "Der übergeordnete Bereich gehört nicht zu diesem Projekt.");
+        }
+
+        if (areaId is Guid self)
+        {
+            var parents = await db.Areas.AsNoTracking().Where(item => item.ProjectId == projectId).ToDictionaryAsync(item => item.Id, item => item.ParentId, ct);
+            if (AreaRules.CreatesCycle(self, parentId, parents))
+            {
+                return Problems.BadRequest(http, "Ein Bereich kann nicht unter einen seiner eigenen Unterbereiche gelegt werden.");
+            }
+        }
+
+        return null;
     }
 
     private static IResult? ValidateArea(HttpContext http, string? name, string? description)

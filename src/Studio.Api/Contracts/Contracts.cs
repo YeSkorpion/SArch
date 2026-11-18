@@ -19,6 +19,12 @@ public sealed record ProjectResponse(
     ProjectRole Role,
     DateTimeOffset UpdatedAt);
 
+public sealed record PresenceRequest(string? Label, Guid? ArtifactId);
+
+public sealed record PresencePerson(Guid UserId, string Name, string Label, Guid? ArtifactId);
+
+public sealed record TogetherResponse(long Revision, IReadOnlyList<PresencePerson> People);
+
 public sealed record CreateProjectRequest(string Name, string? Description);
 
 public sealed record UpdateProjectRequest(int Version, string Name, string? Description);
@@ -279,9 +285,9 @@ public sealed record AffectedFlowResponse(
     string NodeTitle,
     string? Rationale);
 
-public sealed record AreaResponse(Guid Id, string Name, string Description, int SortOrder, int DiagramCount);
+public sealed record AreaResponse(Guid Id, string Name, string Description, int SortOrder, int DiagramCount, Guid? ParentId);
 
-public sealed record SaveAreaRequest(string Name, string? Description);
+public sealed record SaveAreaRequest(string Name, string? Description, Guid? ParentId);
 
 public sealed record SavedViewResponse(Guid Id, string Name, string Scope, Guid? AreaId, string? AreaName, bool Unassigned, string Query);
 

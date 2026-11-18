@@ -36,6 +36,16 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   )
 }
 
+export function ConflictBanner({ onReload, onKeep }: { onReload: () => void; onKeep: () => void }) {
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-warning bg-warning/10 px-3 py-2 text-sm">
+      Jemand hat diese Fassung gerade gespeichert. Deine Änderungen sind noch hier.
+      <Button size="sm" type="button" onClick={onReload}>Serverstand laden</Button>
+      <Button size="sm" type="button" variant="primary" onClick={onKeep}>Meine Fassung speichern</Button>
+    </div>
+  )
+}
+
 export function SaveBadge({ state }: { state: 'saved' | 'saving' | 'error' | 'conflict' | 'idle' }) {
   const text = state === 'saving' ? 'Wird gespeichert' : state === 'saved' ? 'Gespeichert' : state === 'error' ? 'Speichern fehlgeschlagen' : state === 'conflict' ? 'Konflikt' : 'Bereit'
   return (

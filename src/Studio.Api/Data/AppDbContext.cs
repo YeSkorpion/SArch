@@ -9,6 +9,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMembership> Memberships => Set<ProjectMembership>();
     public DbSet<ProjectCounter> ProjectCounters => Set<ProjectCounter>();
+    public DbSet<ProjectPresence> ProjectPresences => Set<ProjectPresence>();
     public DbSet<Artifact> Artifacts => Set<Artifact>();
     public DbSet<Requirement> Requirements => Set<Requirement>();
     public DbSet<Diagram> Diagrams => Set<Diagram>();
@@ -51,6 +52,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             b.Property(x => x.Name).HasMaxLength(160);
             b.Property(x => x.Description).HasMaxLength(4000);
             b.HasIndex(x => x.UpdatedAt);
+        });
+
+        builder.Entity<ProjectPresence>(b =>
+        {
+            b.HasKey(x => new { x.ProjectId, x.UserId });
+            b.Property(x => x.DisplayName).HasMaxLength(80);
+            b.Property(x => x.Label).HasMaxLength(160);
+            b.HasIndex(x => new { x.ProjectId, x.SeenAt });
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<ProjectMembership>(b =>
@@ -231,7 +242,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             b.Property(x => x.Name).HasMaxLength(160);
             b.Property(x => x.Description).HasMaxLength(2000);
             b.HasIndex(x => new { x.ProjectId, x.Name }).IsUnique();
+            b.HasIndex(x => x.ParentId);
             b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Area>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
+            b.ToTable(table => table.HasCheckConstraint("ck_areas_no_self_parent", "parent_id IS NULL OR parent_id <> id"));
         });
 
         builder.Entity<SavedView>(b =>
