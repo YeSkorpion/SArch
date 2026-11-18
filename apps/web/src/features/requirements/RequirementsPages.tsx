@@ -1,0 +1,277 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useOutletContext, useParams, useSearchParams } from 'react-router'
+import { LeaveGuard } from '../../components/LeaveGuard'
+import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
+import { Badge, Button, Field, Input, Modal, PageHeader, Select, Textarea } from '../../components/ui'
+import { api, errorText } from '../../lib/api'
+import { useAutosave } from '../../lib/autosave'
+import { priorityLabel, requirementStatusLabel } from '../../lib/labels'
+import { useRememberScroll } from '../../lib/scroll'
+import type { Impact, Page, Requirement, RequirementPriority, RequirementStatus } from '../../lib/types'
+import { LinkPanel } from '../links/LinkPanel'
+import { UsagePanel } from '../usage/UsagePanel'
+import type { ProjectOutlet } from '../shell/Shell'
+
+const statuses: RequirementStatus[] = ['Offen', 'InBearbeitung', 'Erledigt', 'Zurueckgestellt']
+const priorities: RequirementPriority[] = ['Niedrig', 'Mittel', 'Hoch', 'Kritisch']
+
+export function RequirementsPage() {
+  const { project, canWrite } = useOutletContext<ProjectOutlet>()
+  const location = useLocation()
+  useRememberScroll(`${location.pathname}${location.search}`)
+  const [params, setParams] = useSearchParams()
+  const status = params.get('status') ?? ''
+  const priority = params.get('priority') ?? ''
+  const missing = params.get('missing') ?? ''
+  const query = new URLSearchParams()
+  if (status) query.set('status', status)
+  if (priority) query.set('priority', priority)
+  if (missing) query.set('missing', missing)
+  const list = useQuery({
+    queryKey: ['requirements', project.id, status, priority, missing],
+    queryFn: () => api<Page<Requirement>>(`/api/v1/projects/${project.id}/requirements?${query.toString()}`),
+  })
+  const [open, setOpen] = useState(params.get('neu') === '1' && canWrite)
+  const [title, setTitle] = useState('')
+  useEffect(() => {
+    if (params.get('neu') !== '1') return
+    const next = new URLSearchParams(params)
+    next.delete('neu')
+    setParams(next, { replace: true })
+  }, [params, setParams])
+  const client = useQueryClient()
+  const create = useMutation({
+    mutationFn: () => api<Requirement>(`/api/v1/projects/${project.id}/requirements`, { method: 'POST', body: { title } }),
+    onSuccess: async () => {
+      setOpen(false)
+      setTitle('')
+      await client.invalidateQueries({ queryKey: ['requirements', project.id] })
+    },
+  })
+
+  const filters = [
+    status ? { key: 'status', label: requirementStatusLabel(status as RequirementStatus) } : null,
+    priority ? { key: 'priority', label: priorityLabel(priority as RequirementPriority) } : null,
+    missing === 'process' ? { key: 'missing', label: 'Ohne Prozessschritt' } : null,
+    missing === 'screen' ? { key: 'missing', label: 'Ohne Screen' } : null,
+    missing === 'component' ? { key: 'missing', label: 'Ohne Komponente' } : null,
+  ].filter((item): item is { key: string; label: string } => item !== null)
+  const hasItems = (list.data?.items.length ?? 0) > 0
+  const createButton = canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Anforderung anlegen</Button> : undefined
+  return (
+    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:px-8">
+      <PageHeader
+        title="Anforderungen"
+        description="Schlüssel, Titel, Status und Priorität bleiben in der Liste sichtbar."
+        action={hasItems || filters.length > 0 ? createButton : undefined}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Select className="studio-inline" aria-label="Status filtern" value={status} onChange={(event) => setFilter(params, setParams, 'status', event.target.value)}>
+          <option value="">Status</option>
+          {statuses.map((item) => <option key={item} value={item}>{requirementStatusLabel(item)}</option>)}
+        </Select>
+        <Select className="studio-inline" aria-label="Priorität filtern" value={priority} onChange={(event) => setFilter(params, setParams, 'priority', event.target.value)}>
+          <option value="">Priorität</option>
+          {priorities.map((item) => <option key={item} value={item}>{priorityLabel(item)}</option>)}
+        </Select>
+        <Select className="studio-inline" aria-label="Zuordnung filtern" value={missing} onChange={(event) => setFilter(params, setParams, 'missing', event.target.value)}>
+          <option value="">Zuordnung</option>
+          <option value="process">Ohne Prozessschritt</option>
+          <option value="screen">Ohne Screen</option>
+          <option value="component">Ohne Komponente</option>
+        </Select>
+        {filters.length > 0 ? (
+          <Button size="sm" type="button" onClick={() => setParams(new URLSearchParams())}>Filter zurücksetzen</Button>
+        ) : null}
+      </div>
+      {filters.length > 0 ? (
+        <ul className="flex flex-wrap gap-2" aria-label="Aktive Filter">
+          {filters.map((filter) => (
+            <li key={filter.key}>
+              <button className="rounded-full bg-card px-3 py-1 text-sm" type="button" onClick={() => setFilter(params, setParams, filter.key, '')}>
+                {filter.label} entfernen
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {list.isLoading ? <Loading /> : null}
+      {list.isError ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : null}
+      {list.data?.items.length === 0 && filters.length === 0 ? (
+        <EmptyState title="Noch keine Anforderungen" body="Die erste Anforderung ist der Einstieg in das Projekt." action={createButton} />
+      ) : null}
+      {list.data?.items.length === 0 && filters.length > 0 ? (
+        <EmptyState title="Keine Treffer für diese Filter" body="Passe die Filter an oder setze sie zurück." action={<Button type="button" onClick={() => setParams(new URLSearchParams())}>Filter zurücksetzen</Button>} />
+      ) : null}
+      <ul className="divide-y divide-line">
+        {list.data?.items.map((item) => (
+          <li key={item.id}>
+            <Link className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 hover:text-accent" to={`/projekte/${project.id}/anforderungen/${item.id}`}>
+              <span className="font-mono text-xs text-muted">{item.key}</span>
+              <span className="min-w-0 font-medium break-words">{' '}{item.title}</span>
+              <span className="flex flex-wrap gap-1">
+                <Badge tone={item.status === 'Erledigt' ? 'ok' : 'neutral'}>{requirementStatusLabel(item.status)}</Badge>
+                <Badge tone={item.priority === 'Kritisch' ? 'warning' : 'neutral'}>{priorityLabel(item.priority)}</Badge>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <Modal open={open} onOpenChange={setOpen} title="Neue Anforderung">
+        <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
+          <Field label="Titel"><Input required value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
+          {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
+          <Button type="submit" variant="primary">Anlegen</Button>
+        </form>
+      </Modal>
+    </div>
+  )
+}
+
+function setFilter(params: URLSearchParams, setParams: (next: URLSearchParams) => void, key: string, value: string) {
+  const next = new URLSearchParams(params)
+  if (value) next.set(key, value)
+  else next.delete(key)
+  setParams(next)
+}
+
+export function RequirementDetailPage() {
+  const { project, canWrite } = useOutletContext<ProjectOutlet>()
+  const { requirementId = '' } = useParams()
+  const query = useQuery({
+    queryKey: ['requirement', project.id, requirementId],
+    queryFn: () => api<Requirement>(`/api/v1/projects/${project.id}/requirements/${requirementId}`),
+  })
+  if (query.isLoading) return <Loading />
+  if (query.isError) return <div className="p-6"><ErrorState error={query.error} onRetry={() => void query.refetch()} /></div>
+  return <RequirementEditor projectId={project.id} canWrite={canWrite} initial={query.data!} onReload={() => query.refetch()} />
+}
+
+function RequirementEditor({ projectId, canWrite, initial, onReload }: { projectId: string; canWrite: boolean; initial: Requirement; onReload: () => Promise<unknown> }) {
+  const client = useQueryClient()
+  const [draft, setDraft] = useState(initial)
+  const [dirty, setDirty] = useState(false)
+  const [version, setVersion] = useState(initial.version)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const impact = useQuery({
+    queryKey: ['impact', projectId, initial.id],
+    queryFn: () => api<Impact>(`/api/v1/projects/${projectId}/artifacts/${initial.id}/impact`),
+    enabled: deleteOpen,
+  })
+  useEffect(() => {
+    if (!dirty) {
+      setDraft(initial)
+      setVersion(initial.version)
+    }
+  }, [initial, dirty])
+  const autosave = useAutosave({
+    enabled: canWrite,
+    dirty,
+    version,
+    signature: JSON.stringify(draft),
+    save: async (currentVersion) => {
+      const saved = await api<Requirement>(`/api/v1/projects/${projectId}/requirements/${initial.id}`, {
+        method: 'PATCH',
+        body: {
+          version: currentVersion,
+          title: draft.title,
+          description: draft.description,
+          status: draft.status,
+          priority: draft.priority,
+          tags: draft.tags,
+        },
+      })
+      setVersion(saved.version)
+      setDirty(false)
+      client.setQueryData(['requirement', projectId, initial.id], saved)
+      return saved.version
+    },
+  })
+  const remove = useMutation({
+    mutationFn: () => api(`/api/v1/projects/${projectId}/artifacts/${initial.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      window.location.assign(`/projekte/${projectId}/anforderungen`)
+    },
+  })
+
+  function update(next: Requirement) {
+    setDraft(next)
+    setDirty(true)
+  }
+
+  return (
+    <div className="grid gap-6 p-4 md:grid-cols-[minmax(0,1fr)_20rem] md:p-6">
+      <LeaveGuard when={dirty || autosave.state === 'conflict' || autosave.state === 'error'} />
+      <section className="grid gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold">{draft.key}</h1>
+          <SaveBadge state={autosave.state} />
+        </div>
+        {autosave.state === 'conflict' ? (
+          <div className="rounded-md border border-warning bg-card p-3 text-sm" role="alert">
+            Der Entwurf wurde zwischenzeitlich gespeichert. Deine lokalen Änderungen bleiben erhalten.
+            <div className="mt-2 flex gap-2">
+              <Button type="button" onClick={() => { setDirty(false); autosave.clearConflict(); void onReload() }}>Serverstand laden</Button>
+              <Button type="button" variant="primary" onClick={() => autosave.retry()}>Erneut speichern</Button>
+            </div>
+          </div>
+        ) : null}
+        {autosave.state === 'error' ? (
+          <p role="alert" className="text-sm text-danger">Die Änderung konnte nicht gespeichert werden. <button className="underline" type="button" onClick={() => autosave.retry()}>Erneut versuchen</button></p>
+        ) : null}
+        <Field label="Titel"><Input value={draft.title} disabled={!canWrite} onChange={(event) => update({ ...draft, title: event.target.value })} /></Field>
+        <Field label="Beschreibung"><Textarea value={draft.description} disabled={!canWrite} onChange={(event) => update({ ...draft, description: event.target.value })} /></Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Status">
+            <Select value={draft.status} disabled={!canWrite} onChange={(event) => update({ ...draft, status: event.target.value as RequirementStatus })}>
+              {statuses.map((item) => <option key={item} value={item}>{requirementStatusLabel(item)}</option>)}
+            </Select>
+          </Field>
+          <Field label="Priorität">
+            <Select value={draft.priority} disabled={!canWrite} onChange={(event) => update({ ...draft, priority: event.target.value as RequirementPriority })}>
+              {priorities.map((item) => <option key={item} value={item}>{item}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <Field label="Tags" hint="Kommagetrennt, 2 bis 30 Zeichen">
+          <Input value={draft.tags.join(', ')} disabled={!canWrite} onChange={(event) => update({ ...draft, tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
+        </Field>
+        {canWrite ? <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Anforderung löschen</Button> : null}
+        <Modal open={deleteOpen} onOpenChange={setDeleteOpen} title="Anforderung löschen">
+          {impact.isLoading ? <p>Auswirkungen werden geladen …</p> : null}
+          {impact.data ? <ImpactList impact={impact.data} /> : null}
+          {remove.isError ? <p role="alert" className="text-sm text-danger">{errorText(remove.error)}</p> : null}
+          <Button type="button" variant="danger" disabled={impact.data ? !impact.data.canDelete : true} onClick={() => remove.mutate()}>Endgültig löschen</Button>
+        </Modal>
+      </section>
+      <aside className="rounded-xl border border-line bg-card p-4">
+        <LinkPanel projectId={projectId} artifactId={initial.id} mode="requirement" canWrite={canWrite} />
+        <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} />
+      </aside>
+    </div>
+  )
+}
+
+export function ImpactList({ impact }: { impact: Impact }) {
+  const groups = [
+    ['Verknüpfungen', impact.links],
+    ['Kanten', impact.edges],
+    ['Platzierungen', impact.placements],
+    ['Unterseiten', impact.childPages],
+    ['Navigationen', impact.navigations],
+    ['Knoten', impact.nodes ?? []],
+  ] as const
+  return (
+    <div className="grid gap-2 text-sm">
+      {impact.blockReason ? <p role="alert">{impact.blockReason}</p> : <p>Diese Verbindungen werden mitgelöscht:</p>}
+      {groups.map(([label, items]) => items.length > 0 ? (
+        <div key={label}>
+          <p className="font-medium">{label}</p>
+          <ul>{items.map((item) => <li key={item.id}>{item.title}</li>)}</ul>
+        </div>
+      ) : null)}
+      {groups.every(([, items]) => items.length === 0) && !impact.blockReason ? <p>Keine weiteren Verbindungen.</p> : null}
+    </div>
+  )
+}

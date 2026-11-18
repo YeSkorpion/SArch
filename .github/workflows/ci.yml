@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc -b --pretty false
+      - run: npm test
+      - run: npm run build
+
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: studio
+          POSTGRES_PASSWORD: studio_ci
+          POSTGRES_DB: studio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U studio -d studio_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Tests
+        run: dotnet test Studio.slnx --nologo --verbosity minimal
+        env:
+          STUDIO_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=studio_test;Username=studio;Password=studio_ci
+
+  browser:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: studio
+          POSTGRES_PASSWORD: studio_ci
+          POSTGRES_DB: studio
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U studio -d studio"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: dotnet build src/Studio.Api/Studio.Api.csproj -c Release
+      - name: Datenbank vorbereiten
+        run: dotnet run --project src/Studio.Api/Studio.Api.csproj -c Release --no-build -- --migrate
+        env:
+          ConnectionStrings__Database: Host=127.0.0.1;Port=54329;Database=studio;Username=studio;Password=studio_ci
+          ASPNETCORE_ENVIRONMENT: Development
+      - name: API starten
+        run: |
+          dotnet run --project src/Studio.Api/Studio.Api.csproj -c Release --no-build > api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:5080/health && exit 0
+            sleep 2
+          done
+          cat api.log
+          exit 1
+        env:
+          ConnectionStrings__Database: Host=127.0.0.1;Port=54329;Database=studio;Username=studio;Password=studio_ci
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://127.0.0.1:5080
+      - run: npm ci
+        working-directory: apps/web
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npx playwright test
+        working-directory: apps/web
+        env:
+          CI: "true"

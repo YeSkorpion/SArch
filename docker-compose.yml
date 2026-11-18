@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-studio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studio_local_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-studio}
+    volumes:
+      - studio-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-studio} -d ${POSTGRES_DB:-studio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      dockerfile: src/Studio.Api/Dockerfile
+    environment:
+      ConnectionStrings__Database: Host=db;Port=5432;Database=${POSTGRES_DB:-studio};Username=${POSTGRES_USER:-studio};Password=${POSTGRES_PASSWORD:-studio_local_dev}
+      ASPNETCORE_ENVIRONMENT: Development
+    command: ["dotnet", "Studio.Api.dll", "--migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Studio.Api/Dockerfile
+    environment:
+      ConnectionStrings__Database: Host=db;Port=5432;Database=${POSTGRES_DB:-studio};Username=${POSTGRES_USER:-studio};Password=${POSTGRES_PASSWORD:-studio_local_dev}
+      ASPNETCORE_ENVIRONMENT: Development
+      STUDIO_BEHIND_PROXY: "true"
+      DATA_PROTECTION_KEYS: /keys
+      Studio__SeedDemo: ${STUDIO_SEED_DEMO:-false}
+      Studio__DemoOwnerEmail: ${STUDIO_DEMO_OWNER_EMAIL:-}
+      Studio__DemoEditorEmail: ${STUDIO_DEMO_EDITOR_EMAIL:-}
+      Studio__DemoViewerEmail: ${STUDIO_DEMO_VIEWER_EMAIL:-}
+      Studio__DemoPassword: ${STUDIO_DEMO_PASSWORD:-}
+    volumes:
+      - studio-keys:/keys
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  studio-db:
+  studio-keys:
