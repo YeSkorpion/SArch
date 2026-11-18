@@ -55,6 +55,29 @@ export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 export APT_LISTCHANGES_FRONTEND=none
 
+apt_update() {
+  if ! apt-get update; then
+    echo "apt-get update hat eine fremde Paketquelle übersprungen. Die Installation verwendet die übrigen Quellen." >&2
+  fi
+}
+
+# Andere Dienste auf demselben Server behalten ihre Ports.
+check_web_ports() {
+  WEB_PORTS_BUSY=0
+  command -v ss >/dev/null 2>&1 || return 0
+  local port listener
+  for port in 80 443; do
+    listener="$(ss -ltnp "sport = :${port}" 2>/dev/null | awk 'NR>1 { print }' || true)"
+    [[ -z "${listener}" ]] && continue
+    if grep -q 'caddy' <<<"${listener}"; then
+      continue
+    fi
+    WEB_PORTS_BUSY=1
+    echo "Port ${port} ist belegt. Caddy wird nicht davor gesetzt:" >&2
+    echo "${listener}" >&2
+  done
+}
+
 locate_checkout() {
   local script_path="${BASH_SOURCE[0]:-}"
   [[ -n "${script_path}" && -f "${script_path}" ]] || return 1
@@ -65,7 +88,7 @@ locate_checkout() {
 }
 
 bootstrap_from_github() {
-  apt-get update
+  apt_update
   apt-get install -y git ca-certificates
   local staging
   staging="$(mktemp -d /tmp/sarch-src.XXXXXX)"
@@ -111,7 +134,7 @@ if ! locate_checkout; then
 fi
 
 install_base_packages() {
-  apt-get update
+  apt_update
   apt-get install -y ca-certificates curl openssl rsync
 }
 
@@ -127,31 +150,37 @@ install_docker() {
   local codename
   codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${codename} stable" > /etc/apt/sources.list.d/docker.list
-  apt-get update
+  apt_update
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   systemctl enable --now docker
 }
 
 install_caddy() {
+  if [[ "${WEB_PORTS_BUSY}" -eq 1 ]]; then
+    echo "Caddy bleibt aus, damit der Dienst auf Port 80 oder 443 weiterläuft."
+    return
+  fi
   if ! command -v caddy >/dev/null 2>&1; then
     apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
-    apt-get update
+    apt_update
     apt-get install -y caddy
   fi
   systemctl enable --now caddy
 }
 
 configure_firewall() {
-  apt-get install -y ufw
+  if ! command -v ufw >/dev/null 2>&1 || ! ufw status | grep -q '^Status: active'; then
+    echo "Die Firewall bleibt unverändert. Port 80 und 443 müssen für SArch erreichbar sein."
+    return
+  fi
   ufw allow OpenSSH
   if [[ -n "${SSH_PORT:-}" ]]; then
     ufw allow "${SSH_PORT}/tcp"
   fi
   ufw allow 80/tcp
   ufw allow 443/tcp
-  ufw --force enable
 }
 
 save_settings() {
@@ -220,20 +249,43 @@ EOF
   save_settings
 }
 
+caddyfile_is_replaceable() {
+  [[ ! -f /etc/caddy/Caddyfile ]] && return 0
+  local sites
+  sites="$(grep -E '^[^#[:space:]].*\{' /etc/caddy/Caddyfile || true)"
+  [[ -z "${sites}" ]] && return 0
+  [[ "${sites}" == ":80 {" ]] && grep -q '/usr/share/caddy' /etc/caddy/Caddyfile
+}
+
 write_caddy() {
+  if [[ "${WEB_PORTS_BUSY}" -eq 1 ]]; then
+    return
+  fi
   if [[ -f /etc/caddy/Caddyfile && ! -f /etc/caddy/Caddyfile.before-sarch ]]; then
     cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.before-sarch
   fi
-  local email_block=""
+  local site email_block=""
+  site="$(printf '%s {\n    encode zstd gzip\n    reverse_proxy 127.0.0.1:8080\n}\n' "${DOMAIN}")"
   if [[ -n "${CADDY_EMAIL}" ]]; then
     email_block="$(printf '{\n    email %s\n}\n' "${CADDY_EMAIL}")"
   fi
-  cat > /etc/caddy/Caddyfile <<EOF
-${email_block}${DOMAIN} {
-    encode zstd gzip
-    reverse_proxy 127.0.0.1:8080
-}
+  if [[ -f /etc/caddy/Caddyfile ]] && grep -q '# BEGIN sarch' /etc/caddy/Caddyfile; then
+    local tmp
+    tmp="$(mktemp)"
+    awk 'BEGIN {skip=0} /# BEGIN sarch/ {skip=1; next} /# END sarch/ {skip=0; next} skip==0 {print}' /etc/caddy/Caddyfile > "${tmp}"
+    mv "${tmp}" /etc/caddy/Caddyfile
+  fi
+  if caddyfile_is_replaceable; then
+    cat > /etc/caddy/Caddyfile <<EOF
+${email_block}# BEGIN sarch
+${site}# END sarch
 EOF
+  else
+    cat >> /etc/caddy/Caddyfile <<EOF
+# BEGIN sarch
+${site}# END sarch
+EOF
+  fi
   chmod 644 /etc/caddy/Caddyfile
   caddy validate --config /etc/caddy/Caddyfile
   systemctl reload caddy
@@ -259,9 +311,10 @@ wait_for_health() {
   exit 1
 }
 
-echo "Installiere Docker, Caddy und die Firewall."
+echo "Installiere Docker, Caddy und prüfe die Firewall."
 install_base_packages
 install_docker
+check_web_ports
 install_caddy
 configure_firewall
 
@@ -272,17 +325,34 @@ echo "Baue und starte die Container."
 compose up --build -d
 wait_for_health
 
-echo "Aktiviere HTTPS für ${DOMAIN}."
-write_caddy
+if [[ "${WEB_PORTS_BUSY}" -eq 1 ]]; then
+  echo "Starte SArch ohne Caddy, weil Port 80 oder 443 belegt ist."
+else
+  echo "Aktiviere HTTPS für ${DOMAIN}."
+  write_caddy
+fi
 
 if [[ "${SOURCE}" == /tmp/sarch-src.* ]]; then
   rm -rf "${SOURCE}"
 fi
 
-cat <<EOF
+if [[ "${WEB_PORTS_BUSY}" -eq 1 ]]; then
+  cat <<EOF
+
+SArch läuft auf diesem Server unter http://127.0.0.1:8080
+Port 80 oder 443 war schon belegt, deshalb wurde Caddy nicht davorgesetzt.
+Leite https://${DOMAIN} im bestehenden Webserver auf http://127.0.0.1:8080 weiter.
+EOF
+else
+  cat <<EOF
 
 SArch läuft hinter https://${DOMAIN}
-Die Oberfläche ist nur über Caddy erreichbar. PostgreSQL hat keinen offenen Port.
+Die Oberfläche ist nur über Caddy erreichbar.
+EOF
+fi
+
+cat <<EOF
+PostgreSQL hat keinen offenen Port.
 Das Datenbankpasswort steht in ${APP_DIR}/.env.
 Adresse, SSH-Port und Zertifikat-Kontakt stehen in ${APP_DIR}/.install-env.
 
