@@ -16,6 +16,28 @@ Für einen frischen Checkout sind keine Zugangsdaten nötig. Compose verwendet d
 
 Demo-Daten sind aus. Sie entstehen nur, wenn `STUDIO_SEED_DEMO=true` gesetzt ist und dazu die vier Werte `STUDIO_DEMO_OWNER_EMAIL`, `STUDIO_DEMO_EDITOR_EMAIL`, `STUDIO_DEMO_VIEWER_EMAIL` und `STUDIO_DEMO_PASSWORD` außerhalb des Repositorys gesetzt sind. Das Beispielprojekt heißt **Kundenportal** und enthält eine Bestellprüfung von der Anforderung bis zur Architekturentscheidung.
 
+## Auf einem Ubuntu-Server
+
+Ein Befehl lädt das Installationsskript und den Quellcode von GitHub, installiert Docker und Caddy und startet SArch hinter HTTPS. Der DNS-Name muss vorher auf den Server zeigen.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YeSkorpion/SArch/main/deploy/install-ubuntu.sh | sudo bash
+```
+
+Die Oberfläche ist danach unter https://www.sarch.systemhaus-ess.de erreichbar. Eine andere Adresse, ein abweichender SSH-Port und eine Kontaktadresse für das Zertifikat lassen sich mitgeben:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YeSkorpion/SArch/main/deploy/install-ubuntu.sh | sudo DOMAIN=www.beispiel.de SSH_PORT=2222 CADDY_EMAIL=admin@beispiel.de bash
+```
+
+Dieselben Angaben merkt sich der Server unter `/opt/sarch/.install-env`. Ein späterer Lauf desselben Befehls holt den aktuellen Stand und baut die Container neu. Das Datenbankpasswort in `/opt/sarch/.env` bleibt dabei erhalten. PostgreSQL ist nicht aus dem Netz erreichbar. Die Registrierung des ersten Kontos ist offen.
+
+Für ein privates Repository denselben Token beim Download und beim Klonen mitgeben:
+
+```bash
+curl -fsSL -H "Authorization: Bearer github_pat_..." https://raw.githubusercontent.com/YeSkorpion/SArch/main/deploy/install-ubuntu.sh | sudo GITHUB_TOKEN=github_pat_... bash
+```
+
 ## Ohne Docker
 
 Voraussetzungen: .NET SDK 10, Node.js 24 und PostgreSQL 16 oder neuer.

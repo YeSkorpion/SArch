@@ -8,7 +8,17 @@ Deutschsprachige Webanwendung, in der Teams ein Softwareprojekt von der Anforder
 docker compose up --build
 ```
 
-Die Oberfläche läuft danach auf http://localhost:8080. Voraussetzungen, der Start ohne Docker, Rollen und der Migrationsablauf stehen in [docs/start.md](docs/start.md). Der geplante Lieferumfang steht in [docs/implementation-plan.md](docs/implementation-plan.md).
+Die Oberfläche läuft danach auf http://localhost:8080. Voraussetzungen, der Start ohne Docker, die Installation auf einem Ubuntu-Server, Rollen und der Migrationsablauf stehen in [docs/start.md](docs/start.md). Der geplante Lieferumfang steht in [docs/implementation-plan.md](docs/implementation-plan.md).
+
+## Ubuntu-Server
+
+Ein Befehl lädt das Projekt von GitHub, installiert es und startet es hinter HTTPS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YeSkorpion/SArch/main/deploy/install-ubuntu.sh | sudo bash
+```
+
+Voraussetzung ist ein Ubuntu-Server, dessen DNS-Name bereits auf die Maschine zeigt. Voreingestellt ist `www.sarch.systemhaus-ess.de`.
 
 ## Annahmen
 

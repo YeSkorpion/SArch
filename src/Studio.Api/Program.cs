@@ -118,6 +118,11 @@ await using (var scope = app.Services.CreateAsyncScope())
     await DemoSeed.ApplyAsync(scope.ServiceProvider, app.Environment, app.Logger);
 }
 
+if (string.Equals(Environment.GetEnvironmentVariable("STUDIO_BEHIND_PROXY"), "true", StringComparison.OrdinalIgnoreCase))
+{
+    app.UseForwardedHeaders();
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
@@ -150,11 +155,6 @@ app.Use(async (context, next) =>
         await next();
     }
 });
-if (string.Equals(Environment.GetEnvironmentVariable("STUDIO_BEHIND_PROXY"), "true", StringComparison.OrdinalIgnoreCase))
-{
-    app.UseForwardedHeaders();
-}
-
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
