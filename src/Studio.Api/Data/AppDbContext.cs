@@ -35,6 +35,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ServiceContract> ServiceContracts => Set<ServiceContract>();
     public DbSet<ComponentSection> ComponentSections => Set<ComponentSection>();
     public DbSet<ComponentColumn> ComponentColumns => Set<ComponentColumn>();
+    public DbSet<CoverageWaiver> CoverageWaivers => Set<CoverageWaiver>();
+    public DbSet<ArtifactSource> ArtifactSources => Set<ArtifactSource>();
+    public DbSet<FlowEntry> FlowEntries => Set<FlowEntry>();
+    public DbSet<CatalogTable> CatalogTables => Set<CatalogTable>();
+    public DbSet<CatalogColumn> CatalogColumns => Set<CatalogColumn>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -80,6 +85,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             b.Property(x => x.Priority).HasConversion<string>().HasMaxLength(32);
             b.Property(x => x.SearchText).HasMaxLength(8000);
             b.HasIndex(x => new { x.ProjectId, x.Key }).IsUnique();
+            b.HasIndex(x => x.AreaId);
+            b.HasOne<Area>().WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.SetNull);
             b.HasIndex(x => x.SearchText).HasMethod("gin").HasOperators("gin_trgm_ops");
             b.HasOne(x => x.Artifact).WithOne().HasForeignKey<Requirement>(x => new { x.ArtifactId, x.ProjectId })
                 .HasPrincipalKey<Artifact>(x => new { x.Id, x.ProjectId }).OnDelete(DeleteBehavior.Restrict);
@@ -374,6 +381,60 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             b.HasIndex(x => new { x.ProjectId, x.CreatedAt });
             b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<ChangePackage>().WithMany().HasForeignKey(x => x.PackageId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<CoverageWaiver>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            b.Property(x => x.Reason).HasMaxLength(400);
+            b.Property(x => x.AuthorName).HasMaxLength(160);
+            b.HasIndex(x => new { x.RequirementId, x.Kind }).IsUnique();
+            b.HasOne<Requirement>().WithMany().HasForeignKey(x => x.RequirementId).HasPrincipalKey(x => x.ArtifactId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ArtifactSource>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            b.Property(x => x.Title).HasMaxLength(160);
+            b.Property(x => x.Target).HasMaxLength(2000);
+            b.Property(x => x.CheckedByName).HasMaxLength(160);
+            b.Property(x => x.CheckedReference).HasMaxLength(200);
+            b.Property(x => x.CheckedTarget).HasMaxLength(2000);
+            b.HasIndex(x => new { x.ProjectId, x.ArtifactId });
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<FlowEntry>(b =>
+        {
+            b.HasKey(x => x.DiagramId);
+            b.HasOne<Diagram>().WithMany().HasForeignKey(x => x.DiagramId).HasPrincipalKey(x => x.ArtifactId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<CatalogTable>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.SourceName).HasMaxLength(160);
+            b.Property(x => x.Name).HasMaxLength(160);
+            b.Property(x => x.Purpose).HasMaxLength(2000);
+            b.HasIndex(x => new { x.ProjectId, x.Name });
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Area>().WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<Document>().WithMany().HasForeignKey(x => x.DocumentId).HasPrincipalKey(x => x.ArtifactId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<CatalogColumn>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Name).HasMaxLength(80);
+            b.Property(x => x.Notes).HasMaxLength(500);
+            b.HasIndex(x => new { x.TableId, x.Position });
+            b.HasOne<CatalogTable>().WithMany().HasForeignKey(x => x.TableId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<CatalogTable>().WithMany().HasForeignKey(x => x.ForeignTableId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

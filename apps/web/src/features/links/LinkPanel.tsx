@@ -14,12 +14,14 @@ export function LinkPanel({
   mode,
   nodeType,
   canWrite,
+  heading = true,
 }: {
   projectId: string
   artifactId: string
   mode: Mode
   nodeType?: string
   canWrite: boolean
+  heading?: boolean
 }) {
   const client = useQueryClient()
   const links = useQuery({
@@ -62,7 +64,7 @@ export function LinkPanel({
 
   return (
     <section className="grid gap-3">
-      <h3 className="text-sm font-semibold">Verknüpfungen</h3>
+      {heading ? <h3 className="text-sm font-semibold">Verknüpfungen</h3> : null}
       {links.isLoading ? <p className="text-sm text-muted">Wird geladen …</p> : null}
       {links.isError ? <p className="text-sm text-danger">{errorText(links.error)}</p> : null}
       <ul className="grid gap-2">

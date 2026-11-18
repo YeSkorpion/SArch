@@ -26,12 +26,13 @@ import { useAutosave } from '../../lib/autosave'
 import { motionMs, readFlag, rememberFlag, useRememberScroll } from '../../lib/scroll'
 import { analyzeProcess } from '../../lib/diagramCheck'
 import { componentKindLabel, nodeTypeLabel } from '../../lib/labels'
-import type { AffectedFlow, Area, Component, Diagram, DiagramKind, DiagramSummary, EdgeKind, Impact, SavedView } from '../../lib/types'
+import type { AffectedFlow, Area, Component, Diagram, DiagramKind, DiagramSummary, EdgeKind, FlowPreview, Impact, SavedView } from '../../lib/types'
 import { LinkPanel } from '../links/LinkPanel'
 import { UsagePanel } from '../usage/UsagePanel'
 import { ImpactList } from '../requirements/RequirementsPages'
 import type { ProjectOutlet } from '../shell/Shell'
 import { ComponentSchema, schemaCountLabel } from './ComponentSchema'
+import { SourcesPanel } from '../plan/SourcesPanel'
 import '@xyflow/react/dist/style.css'
 
 type NodeData = {
@@ -313,6 +314,11 @@ export function DiagramEditorPage() {
 function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: string; canWrite: boolean; initial: Diagram; reload: () => Promise<unknown> }) {
   const [params] = useSearchParams()
   const focusId = params.get('node')
+  const flowPreview = useQuery({
+    queryKey: ['flow', projectId, initial.id],
+    queryFn: () => api<FlowPreview>(`/api/v1/projects/${projectId}/diagrams/${initial.id}/flow`),
+    enabled: initial.kind === 'Process',
+  })
   const [nodes, setNodes] = useState<FlowNode[]>(() => initial.nodes.map((node) => toNode(node)))
   const [edges, setEdges] = useState<FlowEdge[]>(() => initial.edges.map(toEdge))
   const [name, setName] = useState(initial.name)
@@ -532,6 +538,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
           <Button size="sm" type="button" onClick={undo}>Rückgängig</Button>
           <Button size="sm" type="button" onClick={redo}>Wiederholen</Button>
           <Button size="sm" type="button" onClick={() => void flow.fitView({ duration: motionMs(240), padding: 0.2 })}>Einpassen</Button>
+          {initial.kind === 'Process' && flowPreview.data?.ready ? <Button asChild size="sm"><Link to={`/projekte/${projectId}/diagramme/${initial.id}/ablauf`}>Ablauf ansehen</Link></Button> : null}
           <Button size="sm" type="button" aria-expanded={inspectorOpen} onClick={() => { const next = !inspectorOpen; setInspectorOpen(next); rememberFlag('studio-panel-inspector', next) }}>Inspektor</Button>
           {canWrite ? (
             <Menu trigger={<Button size="sm" type="button" aria-label="Weitere Aktionen"><MoreHorizontal size={16} /></Button>}>
@@ -609,6 +616,20 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
               <h2 className="font-semibold">Inspektor</h2>
               <Button size="sm" type="button" onClick={() => { setInspectorOpen(false); rememberFlag('studio-panel-inspector', false) }}>Schließen</Button>
             </div>
+            {initial.kind === 'Process' ? (
+              <details className="mb-4">
+                <summary className="cursor-pointer text-sm font-semibold">Quellen und Aktualität</summary>
+                <div className="pt-2">
+                  <SourcesPanel projectId={projectId} artifactId={initial.id} canWrite={canWrite} />
+                  {selectedNode && ['action', 'decision', 'event'].includes(String(selectedNode.data?.nodeType)) ? (
+                    <div className="mt-4 border-t border-line pt-3">
+                      <p className="mb-2 text-xs text-muted">Quellen dieses Schritts</p>
+                      <SourcesPanel projectId={projectId} artifactId={selectedNode.id} canWrite={canWrite} />
+                    </div>
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
             <details className="mb-4" open>
               <summary className="cursor-pointer text-sm font-semibold">Prüfung{issues.length > 0 ? ` (${issues.length})` : ''}</summary>
               <IssueList issues={issues} onSelect={(id) => { setSelectedId(id); setSelectedKind('node'); void flow.fitView({ nodes: [{ id }], duration: motionMs(240), padding: 0.6 }) }} />
@@ -1144,6 +1165,9 @@ export function ComponentDetailPage() {
           <UsagePanel projectId={project.id} artifactId={componentId} title={draft.name} />
         </div>
       </aside>
+      <div className="rounded-xl border border-line bg-card p-4 xl:col-span-2">
+        <SourcesPanel projectId={project.id} artifactId={componentId} canWrite={canWrite} />
+      </div>
       <ComponentSchema projectId={project.id} componentId={componentId} kind={draft.kind} canWrite={canWrite} />
     </div>
   )

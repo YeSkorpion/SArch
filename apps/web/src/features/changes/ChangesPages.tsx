@@ -104,6 +104,7 @@ export function PackageDetailPage() {
   const [term, setTerm] = useState('')
   const [comment, setComment] = useState('')
   const [target, setTarget] = useState('')
+  const [assigneeId, setAssigneeId] = useState('')
   const [reason, setReason] = useState('')
   const [params, setParams] = useSearchParams()
   const [adding, setAdding] = useState(false)
@@ -139,7 +140,7 @@ export function PackageDetailPage() {
     onError: fail,
   })
   const commentSave = useMutation({
-    mutationFn: () => api<PackageDetail>(`/api/v1/projects/${project.id}/packages/${packageId}/comments`, { method: 'POST', body: { version: detail.data!.version, text: comment, artifactId: target || null } }),
+    mutationFn: () => api<PackageDetail>(`/api/v1/projects/${project.id}/packages/${packageId}/comments`, { method: 'POST', body: { version: detail.data!.version, text: comment, artifactId: target || null, assigneeId: assigneeId || null } }),
     onSuccess: (next) => { refresh(next); setComment('') },
     onError: fail,
   })
@@ -322,7 +323,7 @@ export function PackageDetailPage() {
         {item.comments.length === 0 ? <p className="text-sm text-muted">Keine Kommentare.</p> : null}
         <ul className="grid gap-2">
           {item.comments.map((entry) => (
-            <li key={entry.id} className="rounded-lg border border-line bg-card px-3 py-2 text-sm">
+            <li id={`kommentar-${entry.id}`} key={entry.id} className="rounded-lg border border-line bg-card px-3 py-2 text-sm">
               <p className="text-xs text-muted">{entry.authorName} · {entry.targetTitle}{entry.missing ? ' · Ziel nicht mehr im Projekt' : ''} · {entry.status}</p>
               <p>{entry.text}</p>
               {canWrite && entry.status === 'Offen' ? <button className="text-xs text-accent underline-offset-2 hover:underline" type="button" onClick={() => void api(`/api/v1/projects/${project.id}/packages/${packageId}/comments/${entry.id}/status`, { method: 'POST', body: { version: item.version, status: 'Erledigt' } }).then((next) => refresh(next as PackageDetail)).catch(fail)}>Erledigt</button> : null}
@@ -335,6 +336,12 @@ export function PackageDetailPage() {
               <Select aria-label="Kommentarziel" value={target} onChange={(event) => setTarget(event.target.value)}>
                 <option value="">Paket</option>
                 {item.items.map((entry) => <option key={entry.id} value={entry.artifactId}>{entry.artifactTitle}</option>)}
+              </Select>
+            </Field>
+            <Field label="Zuweisen an">
+              <Select aria-label="Zuweisen an" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
+                <option value="">Paketverantwortliche Person</option>
+                {members.data?.map((member) => <option key={member.userId} value={member.userId}>{member.displayName}</option>)}
               </Select>
             </Field>
             <Field label="Kommentar">

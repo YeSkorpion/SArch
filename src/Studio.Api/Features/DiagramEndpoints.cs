@@ -223,6 +223,9 @@ public static class DiagramEndpoints
 
         if (removed.Count > 0)
         {
+            db.ArtifactSources.RemoveRange(await db.ArtifactSources.Where(item => item.ProjectId == projectId && removed.Contains(item.ArtifactId)).ToListAsync(ct));
+            var entries = await db.FlowEntries.Where(item => item.DiagramId == diagramId && removed.Contains(item.NodeId)).ToListAsync(ct);
+            db.FlowEntries.RemoveRange(entries);
             db.DiagramNodes.RemoveRange(existingNodes.Where(item => removed.Contains(item.ArtifactId)));
             var obsoleteArtifacts = await db.Artifacts.Where(item => removed.Contains(item.Id)).ToListAsync(ct);
             db.Artifacts.RemoveRange(obsoleteArtifacts);
@@ -335,6 +338,8 @@ public static class DiagramEndpoints
 
         var nodeIds = await db.DiagramNodes.Where(item => item.DiagramId == diagramId).Select(item => item.ArtifactId).ToListAsync(ct);
         var ids = nodeIds.Append(diagramId).ToArray();
+        db.ArtifactSources.RemoveRange(await db.ArtifactSources.Where(item => item.ProjectId == projectId && ids.Contains(item.ArtifactId)).ToListAsync(ct));
+        db.FlowEntries.RemoveRange(await db.FlowEntries.Where(item => item.DiagramId == diagramId).ToListAsync(ct));
         var links = await db.ArtifactLinks.Where(item => item.ProjectId == projectId && (ids.Contains(item.SourceArtifactId) || ids.Contains(item.TargetArtifactId))).ToListAsync(ct);
         db.ArtifactLinks.RemoveRange(links);
         db.DiagramEdges.RemoveRange(await db.DiagramEdges.Where(item => item.DiagramId == diagramId).ToListAsync(ct));

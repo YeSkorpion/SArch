@@ -1,18 +1,37 @@
 namespace Studio.Api.Contracts;
 
-public sealed record CoverageLink(Guid Id, string Title, Guid? DiagramId);
+public sealed record CoverageRef(Guid Id, string Title, Guid? DiagramId, string? Path);
 
-public sealed record CoverageRow(
+public sealed record CoverageWaiverInfo(string Reason, string AuthorName, DateTimeOffset CreatedAt, bool Superseded);
+
+public sealed record CoverageCell(
+    CoverageState State,
+    IReadOnlyList<CoverageRef> Direct,
+    IReadOnlyList<CoverageRef> Indirect,
+    CoverageWaiverInfo? Waiver);
+
+public sealed record CoverageItem(
     Guid Id,
     string Key,
     string Title,
     RequirementStatus Status,
-    int Criteria,
-    int CriteriaOpen,
-    IReadOnlyList<CoverageLink> Steps,
-    IReadOnlyList<CoverageLink> Screens,
-    IReadOnlyList<CoverageLink> Components,
-    IReadOnlyList<CoverageLink> Decisions);
+    Guid? AreaId,
+    CoverageCell Process,
+    CoverageCell Screen,
+    CoverageCell Component,
+    CoverageCell Decision);
+
+public sealed record CoverageResponse(
+    int Total,
+    int Page,
+    int PageSize,
+    int ProcessMissing,
+    int ScreenMissing,
+    int ComponentMissing,
+    int DecisionMissing,
+    IReadOnlyList<CoverageItem> Items);
+
+public sealed record CoverageWaiverRequest(string Reason);
 
 public sealed record CriterionInput(Guid? Id, string Text, bool Done);
 

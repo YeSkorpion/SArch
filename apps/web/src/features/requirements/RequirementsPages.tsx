@@ -8,11 +8,12 @@ import { api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
 import { priorityLabel, requirementStatusLabel } from '../../lib/labels'
 import { useRememberScroll } from '../../lib/scroll'
-import type { Impact, Page, Requirement, RequirementPriority, RequirementStatus } from '../../lib/types'
+import type { Area, Impact, Page, Requirement, RequirementPriority, RequirementStatus } from '../../lib/types'
 import { LinkPanel } from '../links/LinkPanel'
 import { UsagePanel } from '../usage/UsagePanel'
 import type { ProjectOutlet } from '../shell/Shell'
 import { AcceptancePanel } from '../plan/PlanPages'
+import { SourcesPanel } from '../plan/SourcesPanel'
 
 const statuses: RequirementStatus[] = ['Offen', 'InBearbeitung', 'Erledigt', 'Zurueckgestellt']
 const priorities: RequirementPriority[] = ['Niedrig', 'Mittel', 'Hoch', 'Kritisch']
@@ -183,7 +184,9 @@ export function RequirementDetailPage() {
 }
 
 function RequirementEditor({ projectId, canWrite, initial, onReload }: { projectId: string; canWrite: boolean; initial: Requirement; onReload: () => Promise<unknown> }) {
+  const [params] = useSearchParams()
   const client = useQueryClient()
+  const areas = useQuery({ queryKey: ['areas', projectId], queryFn: () => api<Area[]>(`/api/v1/projects/${projectId}/areas`) })
   const [draft, setDraft] = useState(initial)
   const [dirty, setDirty] = useState(false)
   const [version, setVersion] = useState(initial.version)
@@ -214,6 +217,7 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
           status: draft.status,
           priority: draft.priority,
           tags: draft.tags,
+          areaId: draft.areaId,
         },
       })
       setVersion(saved.version)
@@ -238,6 +242,7 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
     <div className="grid gap-6 p-4 md:grid-cols-[minmax(0,1fr)_20rem] md:p-6">
       <LeaveGuard when={dirty || autosave.state === 'conflict' || autosave.state === 'error'} />
       <section className="grid gap-4">
+        {params.get('von') === 'abdeckung' ? <Link className="text-sm text-muted underline-offset-2 hover:underline" to={`/projekte/${projectId}/abdeckung?${coverageReturn(params)}`}>Zurück zur Planungsabdeckung</Link> : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold">{draft.key}</h1>
           <SaveBadge state={autosave.state} />
@@ -268,10 +273,19 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
             </Select>
           </Field>
         </div>
+        <Field label="Fachbereich">
+          <Select aria-label="Fachbereich" value={draft.areaId ?? ''} disabled={!canWrite} onChange={(event) => update({ ...draft, areaId: event.target.value || null })}>
+            <option value="">Ohne Bereich</option>
+            {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+          </Select>
+        </Field>
         <Field label="Tags" hint="Kommagetrennt, 2 bis 30 Zeichen">
           <Input value={draft.tags.join(', ')} disabled={!canWrite} onChange={(event) => update({ ...draft, tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
         </Field>
         <AcceptancePanel projectId={projectId} requirementId={initial.id} canWrite={canWrite} />
+        <div className="rounded-xl border border-line bg-card p-4">
+          <SourcesPanel projectId={projectId} artifactId={initial.id} canWrite={canWrite} />
+        </div>
         {canWrite ? <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Anforderung löschen</Button> : null}
         <Modal open={deleteOpen} onOpenChange={setDeleteOpen} title="Anforderung löschen">
           {impact.isLoading ? <p>Auswirkungen werden geladen …</p> : null}
@@ -286,6 +300,15 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
       </aside>
     </div>
   )
+}
+
+function coverageReturn(params: URLSearchParams) {
+  const next = new URLSearchParams()
+  for (const key of ['bereich', 'status', 'fehlt', 'seite']) {
+    const value = params.get(key)
+    if (value) next.set(key, value)
+  }
+  return next
 }
 
 export function ImpactList({ impact }: { impact: Impact }) {

@@ -11,6 +11,7 @@ import { useAutosave } from '../../lib/autosave'
 import { elementDefaults, elementLabel, parseWireframe, serializeWireframe, wireframeGroups, type WireElement, type Wireframe, type WireframeType } from '../../lib/wireframe'
 import type { Screen, ScreenStatus } from '../../lib/types'
 import { LinkPanel } from '../links/LinkPanel'
+import { SourcesPanel } from '../plan/SourcesPanel'
 import { UsagePanel } from '../usage/UsagePanel'
 import { ImpactList } from '../requirements/RequirementsPages'
 import type { ProjectOutlet } from '../shell/Shell'
@@ -331,6 +332,12 @@ function ScreenEditor({ projectId, canWrite, initial, reload }: { projectId: str
                   <Field label="Notizen"><Textarea className="min-h-12" rows={2} value={meta.notes} disabled={!canWrite} onChange={(event) => { setMeta({ ...meta, notes: event.target.value }); setDirty(true) }} /></Field>
                 </div>
               </details>
+              <details className="border-t border-line">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">Quellen und Aktualität</summary>
+                <div className="px-3 pb-3">
+                  <SourcesPanel projectId={projectId} artifactId={initial.id} canWrite={canWrite} />
+                </div>
+              </details>
               <details className="border-t border-line" open={moreOpen} onToggle={(event) => setMoreOpen(event.currentTarget.open)}>
                 <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">Verknüpfungen</summary>
                 <div className="grid gap-4 px-3 pb-3">
@@ -406,7 +413,7 @@ function chromeClass(type: WireframeType) {
   return 'overflow-hidden'
 }
 
-function WireFace({ element }: { element: WireElement }) {
+export function WireFace({ element }: { element: WireElement }) {
   const label = element.text || elementLabel(element.type)
   if (element.type === 'heading') return <div className="flex h-full items-center px-2 text-lg font-semibold">{label}</div>
   if (element.type === 'text') return <div className="h-full overflow-hidden px-2 py-1 text-sm text-muted">{label}</div>

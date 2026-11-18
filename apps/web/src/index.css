@@ -272,9 +272,59 @@ button:not(:disabled):active {
   letter-spacing: -0.02em;
 }
 
+.studio-prose .ProseMirror h1 {
+  margin: 1.6rem 0 0.4rem;
+  font-size: 1.75rem;
+  font-weight: 650;
+}
+
 .studio-prose .ProseMirror h2 {
   margin: 1.75rem 0 0.45rem;
   font-size: 1.35rem;
+  font-weight: 650;
+}
+
+.studio-prose .ProseMirror h3 {
+  margin: 1.25rem 0 0.3rem;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.studio-prose .ProseMirror blockquote {
+  margin: 1rem 0;
+  border-left: 3px solid var(--accent);
+  padding-left: 0.9rem;
+  color: var(--muted);
+}
+
+.studio-prose .ProseMirror hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.studio-prose .ProseMirror a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
+.studio-prose .ProseMirror code {
+  border-radius: 4px;
+  background: var(--bg);
+  padding: 0.1rem 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.studio-prose .ProseMirror ul[data-type='taskList'] {
+  margin-left: 0;
+  list-style: none;
+}
+
+.studio-prose .ProseMirror ul[data-type='taskList'] li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
 }
 
 .studio-prose .ProseMirror p {

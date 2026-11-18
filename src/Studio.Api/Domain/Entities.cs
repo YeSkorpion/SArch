@@ -55,6 +55,7 @@ public sealed class Requirement
     public RequirementStatus Status { get; set; } = RequirementStatus.Offen;
     public RequirementPriority Priority { get; set; } = RequirementPriority.Mittel;
     public List<string> Tags { get; set; } = [];
+    public Guid? AreaId { get; set; }
     public int Version { get; set; } = 1;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -264,6 +265,7 @@ public sealed class PackageComment
     public Guid? DiagramId { get; set; }
     public Guid AuthorId { get; set; }
     public string AuthorName { get; set; } = "";
+    public Guid? AssigneeId { get; set; }
     public string Text { get; set; } = "";
     public CommentStatus Status { get; set; } = CommentStatus.Offen;
     public DateTimeOffset CreatedAt { get; set; }
@@ -387,4 +389,64 @@ public sealed class ServiceContract
     public string Output { get; set; } = "";
     public string Errors { get; set; } = "";
     public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class CoverageWaiver
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid RequirementId { get; set; }
+    public CoverageKind Kind { get; set; }
+    public string Reason { get; set; } = "";
+    public Guid AuthorId { get; set; }
+    public string AuthorName { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class ArtifactSource
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid ArtifactId { get; set; }
+    public SourceKind Kind { get; set; }
+    public string Title { get; set; } = "";
+    public string Target { get; set; } = "";
+    public DateTimeOffset? CheckedAt { get; set; }
+    public Guid? CheckedById { get; set; }
+    public string? CheckedByName { get; set; }
+    public string? CheckedReference { get; set; }
+    public string? CheckedTarget { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class FlowEntry
+{
+    public Guid DiagramId { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid NodeId { get; set; }
+    public Guid ScreenId { get; set; }
+}
+
+public sealed class CatalogTable
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid? AreaId { get; set; }
+    public string SourceName { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Purpose { get; set; } = "";
+    public Guid? DocumentId { get; set; }
+}
+
+public sealed class CatalogColumn
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid TableId { get; set; }
+    public int Position { get; set; }
+    public string Name { get; set; } = "";
+    public bool IsPrimaryKey { get; set; }
+    public Guid? ForeignTableId { get; set; }
+    public string Notes { get; set; } = "";
 }

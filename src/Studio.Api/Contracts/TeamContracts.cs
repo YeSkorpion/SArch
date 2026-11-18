@@ -60,7 +60,9 @@ public sealed record PackageCommentResponse(
     string Text,
     CommentStatus Status,
     DateTimeOffset CreatedAt,
-    bool Missing);
+    bool Missing,
+    Guid? AssigneeId,
+    string? AssigneeName);
 
 public sealed record PackageDecisionResponse(
     Guid Id,
@@ -97,7 +99,7 @@ public sealed record AddPackageItemRequest(int Version, Guid ArtifactId, string 
 
 public sealed record RemovePackageItemRequest(int Version, Guid ItemId);
 
-public sealed record PackageCommentRequest(int Version, string Text, Guid? ArtifactId);
+public sealed record PackageCommentRequest(int Version, string Text, Guid? ArtifactId, Guid? AssigneeId);
 
 public sealed record CommentStatusRequest(int Version, CommentStatus Status);
 

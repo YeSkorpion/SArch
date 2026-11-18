@@ -123,6 +123,7 @@ export function AreaDetailPage() {
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{area.name}</h1>
         {area.description ? <p className="mt-2 max-w-3xl text-sm text-muted">{area.description}</p> : null}
         <p className="mt-2 text-xs text-muted">{area.diagramCount} {area.diagramCount === 1 ? 'Diagramm' : 'Diagramme'}</p>
+        <Link className="mt-3 inline-block text-sm text-accent underline-offset-2 hover:underline" to={`/projekte/${project.id}/abdeckung?bereich=${area.id}`}>Planungsabdeckung</Link>
       </header>
       {processes.isError ? <ErrorState error={processes.error} onRetry={() => void processes.refetch()} /> : null}
       {systems.isError ? <ErrorState error={systems.error} onRetry={() => void systems.refetch()} /> : null}

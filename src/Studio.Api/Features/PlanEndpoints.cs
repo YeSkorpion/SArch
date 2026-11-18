@@ -5,6 +5,8 @@ public static class PlanEndpoints
     public static void Map(RouteGroupBuilder group)
     {
         group.MapGet("/projects/{projectId:guid}/coverage", Coverage);
+        group.MapPut("/projects/{projectId:guid}/requirements/{requirementId:guid}/coverage/{kind}", SaveWaiver);
+        group.MapDelete("/projects/{projectId:guid}/requirements/{requirementId:guid}/coverage/{kind}", DeleteWaiver);
         group.MapGet("/projects/{projectId:guid}/requirements/{requirementId:guid}/criteria", ListCriteria);
         group.MapPut("/projects/{projectId:guid}/requirements/{requirementId:guid}/criteria", SaveCriteria);
         group.MapGet("/projects/{projectId:guid}/open-points", ListPoints);
@@ -27,43 +29,106 @@ public static class PlanEndpoints
         group.MapPut("/projects/{projectId:guid}/delivery", OrderDelivery);
     }
 
-    private static async Task<IResult> Coverage(ProjectGuard guard, AppDbContext db, Guid projectId, HttpContext http, CancellationToken ct)
+    private static async Task<IResult> Coverage(ProjectGuard guard, AppDbContext db, Guid projectId, Guid? bereich, RequirementStatus? status, string? fehlt, int? page, int? pageSize, HttpContext http, CancellationToken ct)
     {
         var gate = await guard.Require(http.User, projectId, Access.Read, ct);
         if (gate.Failed) return gate.Error!;
-        var requirements = await db.Requirements.AsNoTracking().Where(item => item.ProjectId == projectId).OrderBy(item => item.Key).ToListAsync(ct);
-        var criteria = await db.RequirementCriteria.AsNoTracking().Where(item => item.ProjectId == projectId).ToListAsync(ct);
-        var links = await db.ArtifactLinks.AsNoTracking()
-            .Where(item => item.ProjectId == projectId && (item.Relation == LinkRelation.Satisfies || item.Relation == LinkRelation.Documents))
-            .ToListAsync(ct);
-        var sourceIds = links.Select(item => item.SourceArtifactId).Distinct().ToList();
-        var nodes = await db.DiagramNodes.AsNoTracking().Where(item => item.ProjectId == projectId && sourceIds.Contains(item.ArtifactId)).ToListAsync(ct);
-        var screens = await db.Screens.AsNoTracking().Where(item => item.ProjectId == projectId && sourceIds.Contains(item.ArtifactId)).ToDictionaryAsync(item => item.ArtifactId, item => item.Name, ct);
-        var components = await db.Components.AsNoTracking().Where(item => item.ProjectId == projectId && sourceIds.Contains(item.ArtifactId)).ToDictionaryAsync(item => item.ArtifactId, item => item.Name, ct);
-        var decisions = await db.Documents.AsNoTracking().Where(item => item.ProjectId == projectId && item.Kind == DocumentKind.Decision && sourceIds.Contains(item.ArtifactId)).ToDictionaryAsync(item => item.ArtifactId, item => item.Title, ct);
-        var nodeById = nodes.ToDictionary(item => item.ArtifactId);
-        var rows = requirements.Select(requirement =>
+        if (bereich is Guid areaId && !await db.Areas.AnyAsync(item => item.ProjectId == projectId && item.Id == areaId, ct))
         {
-            var incoming = links.Where(item => item.TargetArtifactId == requirement.ArtifactId).ToList();
-            var own = criteria.Where(item => item.RequirementId == requirement.ArtifactId).ToList();
-            return new CoverageRow(
-                requirement.ArtifactId,
-                requirement.Key,
-                requirement.Title,
-                requirement.Status,
-                own.Count,
-                own.Count(item => !item.Done),
-                Distinct(incoming.Where(item => item.Relation == LinkRelation.Satisfies && nodeById.ContainsKey(item.SourceArtifactId)).Select(item =>
-                {
-                    var node = nodeById[item.SourceArtifactId];
-                    return new CoverageLink(node.ArtifactId, node.Title, node.DiagramId);
-                })),
-                Distinct(incoming.Where(item => item.Relation == LinkRelation.Satisfies && screens.ContainsKey(item.SourceArtifactId)).Select(item => new CoverageLink(item.SourceArtifactId, screens[item.SourceArtifactId], null))),
-                Distinct(incoming.Where(item => item.Relation == LinkRelation.Satisfies && components.ContainsKey(item.SourceArtifactId)).Select(item => new CoverageLink(item.SourceArtifactId, components[item.SourceArtifactId], null))),
-                Distinct(incoming.Where(item => item.Relation == LinkRelation.Documents && decisions.ContainsKey(item.SourceArtifactId)).Select(item => new CoverageLink(item.SourceArtifactId, decisions[item.SourceArtifactId], null))));
-        }).ToList();
-        return Results.Ok(rows);
+            return Problems.BadRequest(http, "Der Fachbereich gehört nicht zu diesem Projekt.");
+        }
+
+        var kind = string.IsNullOrWhiteSpace(fehlt) ? null : ParseKind(fehlt);
+        if (!string.IsNullOrWhiteSpace(fehlt) && kind is null) return Problems.BadRequest(http, "Die Zuordnungsart ist unbekannt.");
+        var rows = await CoverageReader.Build(db, projectId, ct);
+        var diagramAreas = await db.Diagrams.AsNoTracking().Where(item => item.ProjectId == projectId).ToDictionaryAsync(item => item.ArtifactId, item => item.AreaId, ct);
+        IEnumerable<CoverageItem> scoped = rows;
+        if (status is RequirementStatus requirementStatus) scoped = scoped.Where(item => item.Status == requirementStatus);
+        if (bereich is Guid area) scoped = scoped.Where(item => CoverageReader.MatchesArea(item, area, diagramAreas));
+        var matched = scoped.ToList();
+        var narrowed = kind is CoverageKind missing
+            ? matched.Where(item => Cell(item, missing).State == CoverageState.Fehlt).ToList()
+            : matched;
+        var size = Math.Clamp(pageSize ?? 25, 1, 100);
+        var index = Math.Max(page ?? 1, 1);
+        return Results.Ok(new CoverageResponse(
+            narrowed.Count,
+            index,
+            size,
+            matched.Count(item => item.Process.State == CoverageState.Fehlt),
+            matched.Count(item => item.Screen.State == CoverageState.Fehlt),
+            matched.Count(item => item.Component.State == CoverageState.Fehlt),
+            matched.Count(item => item.Decision.State == CoverageState.Fehlt),
+            narrowed.Skip((index - 1) * size).Take(size).ToList()));
     }
+
+    private static async Task<IResult> SaveWaiver(ProjectGuard guard, AppDbContext db, TimeProvider clock, Guid projectId, Guid requirementId, string kind, CoverageWaiverRequest body, HttpContext http, CancellationToken ct)
+    {
+        var gate = await guard.Require(http.User, projectId, Access.Write, ct);
+        if (gate.Failed) return gate.Error!;
+        var parsed = ParseKind(kind);
+        if (parsed is null) return Problems.BadRequest(http, "Die Zuordnungsart ist unbekannt.");
+        if (!await db.Requirements.AnyAsync(item => item.ProjectId == projectId && item.ArtifactId == requirementId, ct)) return Problems.NotFound(http);
+        var reason = body.Reason?.Trim() ?? "";
+        if (reason.Length is < 1 or > 400) return Problems.BadRequest(http, "Die Begründung braucht 1 bis 400 Zeichen.");
+        var author = await db.Users.AsNoTracking().FirstAsync(item => item.Id == gate.UserId, ct);
+        var existing = await db.CoverageWaivers.FirstOrDefaultAsync(item => item.ProjectId == projectId && item.RequirementId == requirementId && item.Kind == parsed, ct);
+        if (existing is null)
+        {
+            db.CoverageWaivers.Add(new CoverageWaiver
+            {
+                Id = Guid.CreateVersion7(),
+                ProjectId = projectId,
+                RequirementId = requirementId,
+                Kind = parsed.Value,
+                Reason = reason,
+                AuthorId = gate.UserId,
+                AuthorName = author.DisplayName,
+                CreatedAt = clock.GetUtcNow(),
+            });
+        }
+        else
+        {
+            existing.Reason = reason;
+            existing.AuthorId = gate.UserId;
+            existing.AuthorName = author.DisplayName;
+            existing.CreatedAt = clock.GetUtcNow();
+        }
+
+        var saved = await DbSave.SaveAsync(db, http, ct);
+        return saved ?? Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteWaiver(ProjectGuard guard, AppDbContext db, Guid projectId, Guid requirementId, string kind, HttpContext http, CancellationToken ct)
+    {
+        var gate = await guard.Require(http.User, projectId, Access.Write, ct);
+        if (gate.Failed) return gate.Error!;
+        var parsed = ParseKind(kind);
+        if (parsed is null) return Problems.BadRequest(http, "Die Zuordnungsart ist unbekannt.");
+        var existing = await db.CoverageWaivers.FirstOrDefaultAsync(item => item.ProjectId == projectId && item.RequirementId == requirementId && item.Kind == parsed, ct);
+        if (existing is null) return Problems.NotFound(http);
+        db.CoverageWaivers.Remove(existing);
+        var saved = await DbSave.SaveAsync(db, http, ct);
+        return saved ?? Results.NoContent();
+    }
+
+    private static CoverageKind? ParseKind(string? value) => value?.ToLowerInvariant() switch
+    {
+        "process" => CoverageKind.Process,
+        "screen" => CoverageKind.Screen,
+        "component" => CoverageKind.Component,
+        "decision" => CoverageKind.Decision,
+        null or "" => null,
+        _ => null,
+    };
+
+    private static CoverageCell Cell(CoverageItem item, CoverageKind kind) => kind switch
+    {
+        CoverageKind.Screen => item.Screen,
+        CoverageKind.Component => item.Component,
+        CoverageKind.Decision => item.Decision,
+        _ => item.Process,
+    };
 
     private static async Task<IResult> ListCriteria(ProjectGuard guard, AppDbContext db, Guid projectId, Guid requirementId, HttpContext http, CancellationToken ct)
     {
@@ -390,9 +455,6 @@ public static class PlanEndpoints
         var saved = await DbSave.SaveAsync(db, http, ct);
         return saved ?? await Delivery(guard, db, projectId, http, ct);
     }
-
-    private static List<CoverageLink> Distinct(IEnumerable<CoverageLink> links) =>
-        links.GroupBy(item => item.Id).Select(group => group.First()).OrderBy(item => item.Title).ToList();
 
     private static async Task<List<CriterionResponse>> Criteria(AppDbContext db, Guid projectId, Guid requirementId, CancellationToken ct) =>
         await db.RequirementCriteria.AsNoTracking()

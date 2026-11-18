@@ -4,6 +4,7 @@ import {
   Cable,
   ChevronDown,
   CircleHelp,
+  CircleUser,
   FileText,
   FolderTree,
   GitBranch,
@@ -33,7 +34,8 @@ const nav = [
   ['Übersicht', '', LayoutDashboard],
   ['Bereiche', 'bereiche', FolderTree],
   ['Anforderungen', 'anforderungen', ListChecks],
-  ['Abdeckung', 'abdeckung', Waypoints],
+  ['Planungsabdeckung', 'abdeckung', Waypoints],
+  ['Meine Arbeit', 'arbeit', CircleUser],
   ['Datenmodell', 'daten', Table2],
   ['Schnittstellen', 'schnittstellen', Cable],
   ['Lieferung', 'lieferung', Milestone],
@@ -73,7 +75,8 @@ export function Shell({ user }: { user: User }) {
     queryFn: () => api<Area[]>(`/api/v1/projects/${projectId}/areas`),
     enabled: Boolean(projectId && areaId),
   })
-  const documentId = location.pathname.match(/\/dokumente\/([^/]+)/)?.[1]
+  const documentMatch = location.pathname.match(/\/dokumente\/([^/]+)/)?.[1]
+  const documentId = documentMatch && /^[0-9a-f-]{36}$/i.test(documentMatch) ? documentMatch : undefined
   const page = useQuery({
     queryKey: ['document', projectId, documentId],
     queryFn: () => api<Document>(`/api/v1/projects/${projectId}/documents/${documentId}`),
@@ -511,11 +514,8 @@ function breadcrumb(pathname: string, projectName: string, diagram?: Diagram, ar
   const labels: Record<string, string> = {
     bereiche: 'Bereiche',
     anforderungen: 'Anforderungen',
-    abdeckung: 'Abdeckung',
-    daten: 'Datenmodell',
-    schnittstellen: 'Schnittstellen',
-    lieferung: 'Lieferung',
-    offen: 'Offene Punkte',
+    abdeckung: 'Planungsabdeckung',
+    arbeit: 'Meine Arbeit',
     prozesse: 'Prozesse',
     ui: 'UI-Planung',
     system: 'Systemarchitektur',
@@ -538,6 +538,9 @@ function breadcrumb(pathname: string, projectName: string, diagram?: Diagram, ar
   }
   if (section === 'bereiche' && parts[3]) {
     crumbs.push({ href: pathname, label: areaName ?? 'Bereich' })
+  }
+  if (section === 'dokumente' && parts[3] === 'katalog') {
+    crumbs.push({ href: `/projekte/${parts[1]}/dokumente/katalog`, label: 'Datenmodell' })
   }
   return crumbs
 }

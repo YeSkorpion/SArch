@@ -4,8 +4,7 @@ import { Link, useOutletContext } from 'react-router'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
 import { Badge, Button, Field, Input, PageHeader, Select, Textarea } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
-import { requirementStatusLabel } from '../../lib/labels'
-import type { Component, CoverageLink, CoverageRow, Criterion, DataEntity, DeliveryPlan, OpenPoint, OpenPointKind, Requirement, Screen, ServiceContract } from '../../lib/types'
+import type { Component, Criterion, DataEntity, DeliveryPlan, OpenPoint, OpenPointKind, Requirement, Screen, ServiceContract } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
 
 const fieldTypes = ['Text', 'Zahl', 'Datum', 'Wahrheitswert', 'Referenz', 'Liste']
@@ -23,61 +22,6 @@ function packageLabel(status: string) {
 
 function pointLabel(kind: OpenPointKind) {
   return kind
-}
-
-export function CoveragePage() {
-  const { project } = useOutletContext<ProjectOutlet>()
-  const [gaps, setGaps] = useState(false)
-  const coverage = useQuery({ queryKey: ['coverage', project.id], queryFn: () => api<CoverageRow[]>(`/api/v1/projects/${project.id}/coverage`) })
-  if (coverage.isLoading) return <Loading />
-  if (coverage.isError) return <div className="p-6"><ErrorState error={coverage.error} onRetry={() => void coverage.refetch()} /></div>
-  const rows = coverage.data ?? []
-  const open = rows.filter((row) => row.steps.length === 0 || row.screens.length === 0 || row.components.length === 0 || row.decisions.length === 0 || row.criteria === 0)
-  const shown = gaps ? open : rows
-  return (
-    <div className={shell()}>
-      <PageHeader
-        title="Abdeckung"
-        description="Jede Anforderung neben Prozessschritt, Screen, Komponente und Entscheidung. Fehlende Planung steht direkt daneben."
-        action={<Button type="button" variant={gaps ? 'primary' : 'secondary'} onClick={() => setGaps((value) => !value)}>{gaps ? 'Alle zeigen' : 'Nur Lücken'}</Button>}
-      />
-      <p className="text-sm text-muted">{open.length} von {rows.length} Anforderungen sind unvollständig.</p>
-      {rows.length === 0 ? <EmptyState title="Noch keine Anforderungen" body="Sobald Anforderungen angelegt sind, zeigt diese Ansicht, was davon noch ohne Prozess, Screen, Komponente, Entscheidung oder Abnahme ist." /> : null}
-      {rows.length > 0 && shown.length === 0 ? <EmptyState title="Keine Lücken" body="Jede Anforderung hat einen Prozessschritt, einen Screen, eine Komponente, eine Entscheidung und mindestens ein Abnahmekriterium." /> : null}
-      <div className="grid gap-3">
-        {shown.map((row) => (
-          <article key={row.id} className="rounded-xl border border-line bg-card p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link className="font-medium hover:text-accent" to={`/projekte/${project.id}/anforderungen/${row.id}`}>{row.key} {row.title}</Link>
-              <Badge>{requirementStatusLabel(row.status)}</Badge>
-              <span className={row.criteria === 0 ? 'text-sm text-danger' : 'text-sm text-muted'}>{row.criteria === 0 ? 'Abnahme fehlt' : `Abnahme ${row.criteria - row.criteriaOpen}/${row.criteria}`}</span>
-            </div>
-            <div className="mt-3 grid gap-3 md:grid-cols-4">
-              <CoverageColumn projectId={project.id} title="Prozessschritt" items={row.steps} href={(item) => `/projekte/${project.id}/diagramme/${item.diagramId}`} />
-              <CoverageColumn projectId={project.id} title="Screen" items={row.screens} href={(item) => `/projekte/${project.id}/ui/${item.id}`} />
-              <CoverageColumn projectId={project.id} title="Komponente" items={row.components} href={(item) => `/projekte/${project.id}/system/komponenten/${item.id}`} />
-              <CoverageColumn projectId={project.id} title="Entscheidung" items={row.decisions} href={(item) => `/projekte/${project.id}/dokumente/${item.id}`} />
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function CoverageColumn({ title, items, href }: { projectId: string; title: string; items: CoverageLink[]; href: (item: CoverageLink) => string }) {
-  return (
-    <div>
-      <h2 className="text-xs font-medium text-muted">{title}</h2>
-      {items.length === 0 ? <p className="mt-1 text-sm text-danger">fehlt</p> : (
-        <ul className="mt-1 grid gap-1">
-          {items.map((item) => (
-            <li key={item.id}><Link className="text-sm hover:text-accent" to={href(item)}>{item.title}</Link></li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
 }
 
 export function AcceptancePanel({ projectId, requirementId, canWrite }: { projectId: string; requirementId: string; canWrite: boolean }) {

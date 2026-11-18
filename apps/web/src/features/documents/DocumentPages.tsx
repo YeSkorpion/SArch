@@ -9,7 +9,7 @@ import TaskList from '@tiptap/extension-task-list'
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, type ReactNodeViewProps } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, FileText, Scale, Search } from 'lucide-react'
+import { Bold, ChevronDown, ChevronRight, Code, FileText, Heading1, Heading2, Heading3, Italic, Link2, List, ListChecks, ListOrdered, Minus, Quote, Scale, Search, Strikethrough, Table as TableIcon, Underline } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
@@ -20,6 +20,7 @@ import { useAutosave } from '../../lib/autosave'
 import { artifactHref, createsCycle, documentStatusLabel } from '../../lib/labels'
 import type { Document, DocumentKind, DocumentListItem, DocumentStatus, Revision, SearchHit } from '../../lib/types'
 import { LinkPanel } from '../links/LinkPanel'
+import { SourcesPanel } from '../plan/SourcesPanel'
 import { UsagePanel } from '../usage/UsagePanel'
 import { ImpactList } from '../requirements/RequirementsPages'
 import type { ProjectOutlet } from '../shell/Shell'
@@ -191,6 +192,7 @@ function DocTree({ projectId, canWrite, items, activeId, onOpen }: { projectId: 
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between gap-2 px-3 pt-3">
         <h2 className="text-sm font-semibold">Seiten</h2>
+        <Link className="text-xs text-accent underline-offset-2 hover:underline" to={`/projekte/${projectId}/dokumente/katalog`}>Datenmodell</Link>
         <span className="mr-auto pl-1 text-xs text-muted">{items.length}</span>
         {canWrite ? (
           <Menu trigger={<Button size="sm" type="button" variant="primary">Neu</Button>}>
@@ -365,6 +367,8 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
   const [parentId, setParentId] = useState(initial.parentId ?? '')
   const [message, setMessage] = useState('')
   const [linkOpen, setLinkOpen] = useState(false)
+  const [webOpen, setWebOpen] = useState(false)
+  const [href, setHref] = useState('')
   const [term, setTerm] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const client = useQueryClient()
@@ -372,7 +376,10 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
   for (const embed of initial.embeds) if (embed.deleted) deletedIds.add(embed.id)
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        link: { openOnClick: false, autolink: true, defaultProtocol: 'https', HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } },
+      }),
       Placeholder.configure({ placeholder: 'Schreibe hier …' }),
       TaskList,
       TaskItem,
@@ -477,68 +484,121 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
             <Button className="ml-2" size="sm" type="button" onClick={() => { setDirty(false); autosave.clearConflict(); void reload() }}>Serverstand laden</Button>
           </div>
         ) : null}
-        <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Textformatierung">
-          <Button size="sm" type="button" aria-pressed={Boolean(editor?.isActive('heading', { level: 2 }))} variant={editor?.isActive('heading', { level: 2 }) ? 'primary' : 'secondary'} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>Überschrift</Button>
-          <Button size="sm" type="button" aria-pressed={Boolean(editor?.isActive('bold'))} variant={editor?.isActive('bold') ? 'primary' : 'secondary'} onClick={() => editor?.chain().focus().toggleBold().run()}>Fett</Button>
-          <Button size="sm" type="button" aria-pressed={Boolean(editor?.isActive('italic'))} variant={editor?.isActive('italic') ? 'primary' : 'secondary'} onClick={() => editor?.chain().focus().toggleItalic().run()}>Kursiv</Button>
-          <Button size="sm" type="button" aria-pressed={Boolean(editor?.isActive('bulletList'))} variant={editor?.isActive('bulletList') ? 'primary' : 'secondary'} onClick={() => editor?.chain().focus().toggleBulletList().run()}>Liste</Button>
-          <Button size="sm" type="button" aria-pressed={Boolean(editor?.isActive('taskList'))} variant={editor?.isActive('taskList') ? 'primary' : 'secondary'} onClick={() => editor?.chain().focus().toggleTaskList().run()}>Aufgaben</Button>
-          <Button size="sm" type="button" onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Tabelle</Button>
-          <Button size="sm" type="button" aria-pressed={Boolean(editor?.isActive('codeBlock'))} variant={editor?.isActive('codeBlock') ? 'primary' : 'secondary'} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>Code</Button>
-          <Button size="sm" type="button" onClick={() => setLinkOpen(true)}>Artefaktlink</Button>
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 rounded-xl border border-line bg-nav p-1.5" role="toolbar" aria-label="Textformatierung">
+          <FormatButton label="Große Überschrift" pressed={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 size={15} /></FormatButton>
+          <FormatButton label="Überschrift" pressed={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 size={15} /></FormatButton>
+          <FormatButton label="Untertitel" pressed={editor?.isActive('heading', { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 size={15} /></FormatButton>
+          <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
+          <FormatButton label="Fett" pressed={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold size={15} /></FormatButton>
+          <FormatButton label="Kursiv" pressed={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={15} /></FormatButton>
+          <FormatButton label="Unterstrichen" pressed={editor?.isActive('underline')} onClick={() => editor?.chain().focus().toggleUnderline().run()}><Underline size={15} /></FormatButton>
+          <FormatButton label="Durchgestrichen" pressed={editor?.isActive('strike')} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough size={15} /></FormatButton>
+          <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
+          <FormatButton label="Liste" pressed={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List size={15} /></FormatButton>
+          <FormatButton label="Nummerierung" pressed={editor?.isActive('orderedList')} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered size={15} /></FormatButton>
+          <FormatButton label="Aufgaben" pressed={editor?.isActive('taskList')} onClick={() => editor?.chain().focus().toggleTaskList().run()}><ListChecks size={15} /></FormatButton>
+          <FormatButton label="Zitat" pressed={editor?.isActive('blockquote')} onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Quote size={15} /></FormatButton>
+          <FormatButton label="Trennlinie" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus size={15} /></FormatButton>
+          <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
+          <FormatButton label="Tabelle" pressed={editor?.isActive('table')} onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><TableIcon size={15} /></FormatButton>
+          <FormatButton label="Codezeichen" pressed={editor?.isActive('code')} onClick={() => editor?.chain().focus().toggleCode().run()}><Code size={15} /></FormatButton>
+          <FormatButton label="Code" pressed={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><span className="font-mono text-xs">{'</>'}</span></FormatButton>
+          <FormatButton label="Weblink" pressed={editor?.isActive('link')} onClick={() => { setHref(String(editor?.getAttributes('link').href ?? '')); setWebOpen(true) }}><Link2 size={15} /></FormatButton>
+          <FormatButton label="Artefaktlink" onClick={() => setLinkOpen(true)}><span className="text-xs font-medium">Artefakt</span></FormatButton>
         </div>
+        {editor?.isActive('table') ? (
+          <div className="flex flex-wrap gap-1">
+            <Button size="sm" type="button" onClick={() => editor.chain().focus().addRowAfter().run()}>Zeile darunter</Button>
+            <Button size="sm" type="button" onClick={() => editor.chain().focus().addColumnAfter().run()}>Spalte rechts</Button>
+            <Button size="sm" type="button" variant="danger" onClick={() => editor.chain().focus().deleteTable().run()}>Tabelle entfernen</Button>
+          </div>
+        ) : null}
         <div className="studio-prose min-h-80 rounded-xl border border-line bg-card px-6 py-5">
           <EditorContent editor={editor} />
         </div>
         {initial.embeds.some((embed) => embed.deleted) ? <p className="text-sm text-warning">Mindestens ein interner Link zeigt auf ein gelöschtes Artefakt.</p> : null}
       </section>
-      <section className="grid gap-3 rounded-xl border border-line bg-card p-4">
-        <h2 className="text-sm font-semibold">Struktur</h2>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <Field label="Übergeordnete Seite">
-              <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
-                <option value="">Oberste Ebene</option>
-                {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-              </Select>
-            </Field>
+      <section className="rounded-xl border border-line bg-card p-4">
+        <SourcesPanel projectId={projectId} artifactId={initial.id} canWrite={canWrite} />
+      </section>
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid content-start gap-3 rounded-xl border border-line bg-card p-4">
+          <h2 className="text-sm font-semibold">Struktur</h2>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-52 flex-1">
+              <Field label="Übergeordnete Seite">
+                <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
+                  <option value="">Oberste Ebene</option>
+                  {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <Button type="button" disabled={!canWrite} onClick={() => {
+              if (createsCycle(initial.id, parentId || null, parents)) {
+                setMessage('Die Seite kann nicht unter eine ihrer eigenen Unterseiten verschoben werden.')
+                return
+              }
+              move.mutate()
+            }}>Verschieben</Button>
+            {canWrite ? <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Löschen</Button> : null}
           </div>
-          <Button type="button" disabled={!canWrite} onClick={() => {
-            if (createsCycle(initial.id, parentId || null, parents)) {
-              setMessage('Die Seite kann nicht unter eine ihrer eigenen Unterseiten verschoben werden.')
-              return
-            }
-            move.mutate()
-          }}>Verschieben</Button>
-          {canWrite ? <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Löschen</Button> : null}
+          {message ? <p role="status" className="text-sm">{message}</p> : null}
         </div>
-        {message ? <p role="status" className="text-sm">{message}</p> : null}
+        <div className="grid content-start gap-2">
+          <h2 className="text-sm font-semibold">Revisionen</h2>
+          {revisions.data && revisions.data.length === 0 ? <p className="text-sm text-muted">Noch keine gespeicherte Revision.</p> : null}
+          {revisions.data && revisions.data.length > 0 ? (
+            <ul className="studio-scroll max-h-64 rounded-xl border border-line bg-card">
+              {revisions.data.map((item) => (
+                <li key={item.id} className="border-b border-line last:border-b-0">
+                  <button className={`w-full px-3 py-2 text-left text-sm hover:bg-background ${revision === item.number ? 'bg-background text-accent' : ''}`} type="button" onClick={() => setRevision(item.number)}>
+                    <span className="block truncate">{item.number}. {item.title}</span>
+                    <span className="block truncate text-xs text-muted">{item.authorName}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </section>
-      <section className="grid content-start gap-3">
-        <h2 className="text-sm font-semibold">Revisionen</h2>
-        {revisions.data && revisions.data.length === 0 ? <p className="text-sm text-muted">Noch keine gespeicherte Revision.</p> : null}
-        {revisions.data && revisions.data.length > 0 ? (
-          <ul className="overflow-hidden rounded-xl border border-line bg-card">
-            {revisions.data.map((item) => (
-              <li key={item.id} className="border-b border-line last:border-b-0">
-                <button className="w-full px-3 py-2 text-left text-sm hover:bg-background" type="button" onClick={() => setRevision(item.number)}>
-                  {item.number}. {item.title} · {item.authorName}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {opened.data ? (
-          <div className="rounded-lg border border-line p-3 text-sm">
-            <p className="font-medium">Revision {opened.data.number}</p>
-            <p className="text-muted">{new Date(opened.data.createdAt).toLocaleString('de-DE')} · {opened.data.authorName}</p>
-            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap">{plain(opened.data.contentJson)}</pre>
-            {canWrite ? <Button className="mt-2" size="sm" type="button" onClick={() => restore.mutate(opened.data!.number)}>Als neue Revision wiederherstellen</Button> : null}
+      {opened.data ? (
+        <div className="rounded-xl border border-line bg-card p-4 text-sm">
+          <p className="font-medium">Revision {opened.data.number}</p>
+          <p className="text-muted">{new Date(opened.data.createdAt).toLocaleString('de-DE')} · {opened.data.authorName}</p>
+          <pre className="studio-scroll mt-2 max-h-48 overflow-auto whitespace-pre-wrap">{plain(opened.data.contentJson)}</pre>
+          {canWrite ? <Button className="mt-2" size="sm" type="button" onClick={() => restore.mutate(opened.data!.number)}>Als neue Revision wiederherstellen</Button> : null}
+        </div>
+      ) : null}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <details className="group rounded-xl border border-line bg-card">
+          <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium">
+            <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+            Verknüpfungen
+          </summary>
+          <div className="border-t border-line px-4 py-3">
+            <LinkPanel projectId={projectId} artifactId={initial.id} mode="document" canWrite={false} heading={false} />
           </div>
-        ) : null}
-        <LinkPanel projectId={projectId} artifactId={initial.id} mode="document" canWrite={false} />
-        <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} />
-      </section>
+        </details>
+        <details className="group rounded-xl border border-line bg-card">
+          <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium">
+            <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+            Auswirkungen
+          </summary>
+          <div className="border-t border-line px-4 py-3">
+            <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} heading={false} />
+          </div>
+        </details>
+      </div>
+      <Modal open={webOpen} onOpenChange={setWebOpen} title="Weblink">
+        <Field label="Adresse">
+          <Input aria-label="Adresse" value={href} placeholder="https://…" onChange={(event) => setHref(event.target.value)} />
+        </Field>
+        {href.trim() && !safeHref(href.trim()) ? <p role="alert" className="text-sm text-danger">Die Adresse muss mit http, https, mailto oder / beginnen.</p> : null}
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="primary" disabled={!safeHref(href.trim())} onClick={() => { editor?.chain().focus().extendMarkRange('link').setLink({ href: href.trim() }).run(); setWebOpen(false) }}>Link setzen</Button>
+          {editor?.isActive('link') ? <Button type="button" variant="ghost" onClick={() => { editor.chain().focus().unsetLink().run(); setWebOpen(false) }}>Weblink entfernen</Button> : null}
+        </div>
+      </Modal>
       <Modal open={linkOpen} onOpenChange={setLinkOpen} title="Interner Artefaktlink">
         <Input value={term} aria-label="Artefakt suchen" placeholder="Suchen" onChange={(event) => setTerm(event.target.value)} />
         <ul className="mt-2 grid gap-1">
@@ -560,6 +620,24 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
       </Modal>
     </div>
   )
+}
+
+function FormatButton({ label, pressed, onClick, children }: { label: string; pressed?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <Button size="sm" type="button" aria-label={label} title={label} aria-pressed={pressed} variant={pressed ? 'primary' : 'secondary'} onClick={onClick}>
+      {children}
+    </Button>
+  )
+}
+
+function safeHref(value: string) {
+  if (value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')) return true
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:'
+  } catch {
+    return false
+  }
 }
 
 function plain(json: string) {

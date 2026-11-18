@@ -41,14 +41,16 @@ public sealed record RequirementResponse(
     IReadOnlyList<string> Tags,
     int Version,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    Guid? AreaId);
 
 public sealed record CreateRequirementRequest(
     string Title,
     string? Description,
     RequirementStatus? Status,
     RequirementPriority? Priority,
-    List<string>? Tags);
+    List<string>? Tags,
+    Guid? AreaId);
 
 public sealed record UpdateRequirementRequest(
     int Version,
@@ -56,7 +58,8 @@ public sealed record UpdateRequirementRequest(
     string? Description,
     RequirementStatus Status,
     RequirementPriority Priority,
-    List<string>? Tags);
+    List<string>? Tags,
+    Guid? AreaId);
 
 public sealed record DiagramSummaryResponse(
     Guid Id,

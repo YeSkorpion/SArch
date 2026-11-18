@@ -413,6 +413,185 @@ namespace Studio.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.ArtifactSource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("artifact_id");
+
+                    b.Property<DateTimeOffset?>("CheckedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("checked_at");
+
+                    b.Property<Guid?>("CheckedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("checked_by_id");
+
+                    b.Property<string>("CheckedByName")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("checked_by_name");
+
+                    b.Property<string>("CheckedReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("checked_reference");
+
+                    b.Property<string>("CheckedTarget")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("checked_target");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("target");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_artifact_sources");
+
+                    b.HasIndex("ProjectId", "ArtifactId")
+                        .HasDatabaseName("ix_artifact_sources_project_id_artifact_id");
+
+                    b.ToTable("artifact_sources", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.CatalogColumn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ForeignTableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("foreign_table_id");
+
+                    b.Property<bool>("IsPrimaryKey")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_primary_key");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("TableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("table_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_catalog_columns");
+
+                    b.HasIndex("ForeignTableId")
+                        .HasDatabaseName("ix_catalog_columns_foreign_table_id");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_catalog_columns_project_id");
+
+                    b.HasIndex("TableId", "Position")
+                        .HasDatabaseName("ix_catalog_columns_table_id_position");
+
+                    b.ToTable("catalog_columns", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.CatalogTable", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AreaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("area_id");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("purpose");
+
+                    b.Property<string>("SourceName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("source_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_catalog_tables");
+
+                    b.HasIndex("AreaId")
+                        .HasDatabaseName("ix_catalog_tables_area_id");
+
+                    b.HasIndex("DocumentId")
+                        .HasDatabaseName("ix_catalog_tables_document_id");
+
+                    b.HasIndex("ProjectId", "Name")
+                        .HasDatabaseName("ix_catalog_tables_project_id_name");
+
+                    b.ToTable("catalog_tables", (string)null);
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.ChangePackage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -730,6 +909,60 @@ namespace Studio.Api.Data.Migrations
                         .HasDatabaseName("ix_component_sections_component_id_position");
 
                     b.ToTable("component_sections", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.CoverageWaiver", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("author_name");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_coverage_waivers");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_coverage_waivers_project_id");
+
+                    b.HasIndex("RequirementId", "Kind")
+                        .IsUnique()
+                        .HasDatabaseName("ix_coverage_waivers_requirement_id_kind");
+
+                    b.ToTable("coverage_waivers", (string)null);
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.DataEntity", b =>
@@ -1232,6 +1465,33 @@ namespace Studio.Api.Data.Migrations
                     b.ToTable("document_revisions", (string)null);
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.FlowEntry", b =>
+                {
+                    b.Property<Guid>("DiagramId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("diagram_id");
+
+                    b.Property<Guid>("NodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("node_id");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("ScreenId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("screen_id");
+
+                    b.HasKey("DiagramId")
+                        .HasName("pk_flow_entries");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_flow_entries_project_id");
+
+                    b.ToTable("flow_entries", (string)null);
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.OpenPoint", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1298,6 +1558,10 @@ namespace Studio.Api.Data.Migrations
                     b.Property<Guid?>("ArtifactId")
                         .HasColumnType("uuid")
                         .HasColumnName("artifact_id");
+
+                    b.Property<Guid?>("AssigneeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignee_id");
 
                     b.Property<Guid>("AuthorId")
                         .HasColumnType("uuid")
@@ -1594,6 +1858,10 @@ namespace Studio.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("artifact_id");
 
+                    b.Property<Guid?>("AreaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("area_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1653,6 +1921,9 @@ namespace Studio.Api.Data.Migrations
 
                     b.HasKey("ArtifactId")
                         .HasName("pk_requirements");
+
+                    b.HasIndex("AreaId")
+                        .HasDatabaseName("ix_requirements_area_id");
 
                     b.HasIndex("SearchText")
                         .HasDatabaseName("ix_requirements_search_text");
@@ -2050,6 +2321,61 @@ namespace Studio.Api.Data.Migrations
                         .HasConstraintName("fk_artifact_links_artifacts_target_artifact_id_project_id");
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.ArtifactSource", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_artifact_sources_projects_project_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.CatalogColumn", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.CatalogTable", null)
+                        .WithMany()
+                        .HasForeignKey("ForeignTableId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_catalog_columns_catalog_tables_foreign_table_id");
+
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_catalog_columns_projects_project_id");
+
+                    b.HasOne("Studio.Api.Domain.CatalogTable", null)
+                        .WithMany()
+                        .HasForeignKey("TableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_catalog_columns_catalog_tables_table_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.CatalogTable", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Area", null)
+                        .WithMany()
+                        .HasForeignKey("AreaId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_catalog_tables_areas_area_id");
+
+                    b.HasOne("Studio.Api.Domain.Document", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_catalog_tables_documents_document_id");
+
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_catalog_tables_projects_project_id");
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.ChangePackage", b =>
                 {
                     b.HasOne("Studio.Api.Domain.Area", null)
@@ -2128,6 +2454,23 @@ namespace Studio.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_component_sections_projects_project_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.CoverageWaiver", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_coverage_waivers_projects_project_id");
+
+                    b.HasOne("Studio.Api.Domain.Requirement", null)
+                        .WithMany()
+                        .HasForeignKey("RequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_coverage_waivers_requirements_requirement_id");
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.DataEntity", b =>
@@ -2285,6 +2628,23 @@ namespace Studio.Api.Data.Migrations
                         .HasConstraintName("fk_document_revisions_documents_document_id_project_id");
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.FlowEntry", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Diagram", null)
+                        .WithMany()
+                        .HasForeignKey("DiagramId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_flow_entries_diagrams_diagram_id");
+
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_flow_entries_projects_project_id");
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.OpenPoint", b =>
                 {
                     b.HasOne("Studio.Api.Domain.Project", null)
@@ -2378,6 +2738,12 @@ namespace Studio.Api.Data.Migrations
 
             modelBuilder.Entity("Studio.Api.Domain.Requirement", b =>
                 {
+                    b.HasOne("Studio.Api.Domain.Area", null)
+                        .WithMany()
+                        .HasForeignKey("AreaId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_requirements_areas_area_id");
+
                     b.HasOne("Studio.Api.Domain.Artifact", "Artifact")
                         .WithOne()
                         .HasForeignKey("Studio.Api.Domain.Requirement", "ArtifactId", "ProjectId")

@@ -34,6 +34,7 @@ export type Requirement = {
   version: number
   createdAt: string
   updatedAt: string
+  areaId: string | null
 }
 export type DiagramSummary = {
   id: string
@@ -242,6 +243,8 @@ export type PackageComment = {
   status: CommentStatus
   createdAt: string
   missing: boolean
+  assigneeId: string | null
+  assigneeName: string | null
 }
 export type PackageDecision = {
   id: string
@@ -289,19 +292,61 @@ export type SnapshotDetail = SnapshotSummary & {
   liveIds: string[]
 }
 export type SnapshotChange = { change: 'added' | 'changed' | 'removed' | 'position'; type: string; id: string; title: string; fields: string[] }
-export type CoverageLink = { id: string; title: string; diagramId: string | null }
-export type CoverageRow = {
+export type CoverageState = 'Zugeordnet' | 'Fehlt' | 'NichtErforderlich'
+export type CoverageRef = { id: string; title: string; diagramId: string | null; path: string | null }
+export type CoverageWaiver = { reason: string; authorName: string; createdAt: string; superseded: boolean }
+export type CoverageCell = { state: CoverageState; direct: CoverageRef[]; indirect: CoverageRef[]; waiver: CoverageWaiver | null }
+export type CoverageItem = {
   id: string
   key: string
   title: string
   status: RequirementStatus
-  criteria: number
-  criteriaOpen: number
-  steps: CoverageLink[]
-  screens: CoverageLink[]
-  components: CoverageLink[]
-  decisions: CoverageLink[]
+  areaId: string | null
+  process: CoverageCell
+  screen: CoverageCell
+  component: CoverageCell
+  decision: CoverageCell
 }
+export type CoverageResult = {
+  total: number
+  page: number
+  pageSize: number
+  processMissing: number
+  screenMissing: number
+  componentMissing: number
+  decisionMissing: number
+  items: CoverageItem[]
+}
+export type SourceKind = 'Code' | 'Ticket' | 'Spezifikation' | 'Sonstige'
+export type SourceState = 'Ungeprueft' | 'Geprueft' | 'ErneutPruefen'
+export type ArtifactSource = {
+  id: string
+  kind: SourceKind
+  title: string
+  target: string
+  destination: string
+  state: SourceState
+  checkedByName: string | null
+  checkedAt: string | null
+  checkedReference: string | null
+}
+export type FlowChoice = { nodeId: string; title: string; screenId: string; screenName: string }
+export type FlowScreen = { id: string; name: string; wireframeJson: string }
+export type FlowPreview = { ready: boolean; entryNodeId: string | null; entryScreenId: string | null; entryStepTitle: string | null; choices: FlowChoice[]; screens: FlowScreen[] }
+export type CatalogColumn = { id: string; name: string; isPrimaryKey: boolean; foreignTableId: string | null; foreignTableName: string | null; notes: string; position: number }
+export type CatalogTable = {
+  id: string
+  name: string
+  purpose: string
+  sourceName: string
+  areaId: string | null
+  areaName: string | null
+  documentId: string | null
+  documentTitle: string | null
+  columns: CatalogColumn[]
+}
+export type WorkRow = { id: string; title: string; status: string; nextStep: string; href: string; updatedAt: string }
+export type WorkList = { review: WorkRow[]; comments: WorkRow[]; packages: WorkRow[] }
 export type Criterion = { id: string; text: string; done: boolean; position: number }
 export type OpenPointKind = 'Frage' | 'Annahme' | 'Risiko'
 export type OpenPointStatus = 'Offen' | 'Geklaert'

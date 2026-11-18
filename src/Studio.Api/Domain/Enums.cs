@@ -126,3 +126,33 @@ public enum DataUseRole
     Speichert,
     Zeigt,
 }
+
+public enum CoverageKind
+{
+    Process,
+    Screen,
+    Component,
+    Decision,
+}
+
+public enum CoverageState
+{
+    Zugeordnet,
+    Fehlt,
+    NichtErforderlich,
+}
+
+public enum SourceKind
+{
+    Code,
+    Ticket,
+    Spezifikation,
+    Sonstige,
+}
+
+public enum SourceState
+{
+    Ungeprueft,
+    Geprueft,
+    ErneutPruefen,
+}

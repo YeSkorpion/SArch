@@ -48,7 +48,10 @@ export function OverviewPage() {
             </div>
           ) : null}
         </div>
-        {create}
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="secondary"><Link to={`/projekte/${project.id}/arbeit`}>Meine Arbeit</Link></Button>
+          {create}
+        </div>
       </header>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
         {stock.map((item) => (
@@ -105,9 +108,14 @@ export function OverviewPage() {
                 ) : null}
                 <ul className="mt-1 divide-y divide-line">
                   <Metric href={`/projekte/${project.id}/anforderungen?status=Offen`} count={data.openCount} label="offene Anforderungen" />
-                  <Metric href={`/projekte/${project.id}/anforderungen?missing=process`} count={data.missingProcessCount} label="ohne Prozessschritt" />
-                  <Metric href={`/projekte/${project.id}/anforderungen?missing=screen`} count={data.missingScreenCount} label="ohne Screen" />
-                  <Metric href={`/projekte/${project.id}/anforderungen?missing=component`} count={data.missingComponentCount} label="ohne Komponente" />
+                </ul>
+              </section>
+              <section className="rounded-xl border border-line bg-card p-4">
+                <h2 className="font-semibold">Fehlende Zuordnungen</h2>
+                <ul className="mt-1 divide-y divide-line">
+                  <Metric href={`/projekte/${project.id}/abdeckung?fehlt=process`} count={data.missingProcessCount} label="ohne Prozessschritt" />
+                  <Metric href={`/projekte/${project.id}/abdeckung?fehlt=screen`} count={data.missingScreenCount} label="ohne Screen" />
+                  <Metric href={`/projekte/${project.id}/abdeckung?fehlt=component`} count={data.missingComponentCount} label="ohne Komponente" />
                 </ul>
               </section>
               {review.length > 0 ? (

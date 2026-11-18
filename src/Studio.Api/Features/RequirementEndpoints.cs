@@ -85,6 +85,11 @@ public static class RequirementEndpoints
         var errors = new List<string>();
         var title = Validate(body.Title, body.Description, errors);
         var tags = TextInput.Tags(body.Tags, errors);
+        if (body.AreaId is Guid createdArea && !await db.Areas.AnyAsync(item => item.ProjectId == projectId && item.Id == createdArea, ct))
+        {
+            errors.Add("Der Fachbereich gehört nicht zu diesem Projekt.");
+        }
+
         if (errors.Count > 0)
         {
             return Problems.BadRequest(http, [.. errors]);
@@ -105,6 +110,7 @@ public static class RequirementEndpoints
             Status = body.Status ?? RequirementStatus.Offen,
             Priority = body.Priority ?? RequirementPriority.Mittel,
             Tags = tags,
+            AreaId = body.AreaId,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -144,6 +150,11 @@ public static class RequirementEndpoints
         var errors = new List<string>();
         var title = Validate(body.Title, body.Description, errors);
         var tags = TextInput.Tags(body.Tags, errors);
+        if (body.AreaId is Guid updatedArea && !await db.Areas.AnyAsync(item => item.ProjectId == projectId && item.Id == updatedArea, ct))
+        {
+            errors.Add("Der Fachbereich gehört nicht zu diesem Projekt.");
+        }
+
         if (errors.Count > 0)
         {
             return Problems.BadRequest(http, [.. errors]);
@@ -167,6 +178,7 @@ public static class RequirementEndpoints
         requirement.Status = body.Status;
         requirement.Priority = body.Priority;
         requirement.Tags = tags;
+        requirement.AreaId = body.AreaId;
         requirement.SearchText = SearchText.Build(requirement.Key, requirement.Title, requirement.Description, string.Join(' ', tags));
         requirement.Version++;
         requirement.UpdatedAt = now;
@@ -192,7 +204,8 @@ public static class RequirementEndpoints
         item.Tags,
         item.Version,
         item.CreatedAt,
-        item.UpdatedAt);
+        item.UpdatedAt,
+        item.AreaId);
 
     public static string LikePattern(string value)
     {

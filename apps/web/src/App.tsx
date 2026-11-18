@@ -11,7 +11,11 @@ import { ProjectsPage } from './features/projects/ProjectsPage'
 import { RequirementDetailPage, RequirementsPage } from './features/requirements/RequirementsPages'
 import { ScreenEditorPage, ScreensPage } from './features/screens/ScreenPages'
 import { ChangesPage, PackageDetailPage, SnapshotPage } from './features/changes/ChangesPages'
-import { ContractsPage, CoveragePage, DataModelPage, DeliveryPage, OpenPointsPage } from './features/plan/PlanPages'
+import { CatalogDetailPage, CatalogPage } from './features/plan/CatalogPages'
+import { CoveragePage } from './features/plan/CoveragePage'
+import { FlowPreviewPage } from './features/plan/FlowPreviewPage'
+import { MyWorkPage } from './features/plan/MyWorkPage'
+import { ContractsPage, DataModelPage, DeliveryPage, OpenPointsPage } from './features/plan/PlanPages'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { Shell } from './features/shell/Shell'
 import { StudioProvider } from './components/ui'
@@ -45,6 +49,7 @@ const router = createBrowserRouter([
           { path: 'lieferung', element: <DeliveryPage /> },
           { path: 'offen', element: <OpenPointsPage /> },
           { path: 'prozesse', element: <DiagramListPage kind="Process" /> },
+          { path: 'diagramme/:diagramId/ablauf', element: <FlowPreviewPage /> },
           { path: 'diagramme/:diagramId', element: <DiagramEditorPage /> },
           { path: 'ui', element: <ScreensPage /> },
           { path: 'ui/:screenId', element: <ScreenEditorPage /> },
@@ -52,7 +57,10 @@ const router = createBrowserRouter([
           { path: 'system/komponenten', element: <ComponentsPage /> },
           { path: 'system/komponenten/:componentId', element: <ComponentDetailPage /> },
           { path: 'dokumente', element: <DocumentsPage /> },
+          { path: 'dokumente/katalog', element: <CatalogPage /> },
+          { path: 'dokumente/katalog/:tableId', element: <CatalogDetailPage /> },
           { path: 'dokumente/:documentId', element: <DocumentEditorPage /> },
+          { path: 'arbeit', element: <MyWorkPage /> },
           { path: 'aenderungen', element: <ChangesPage /> },
           { path: 'aenderungen/:packageId', element: <PackageDetailPage /> },
           { path: 'staende/:snapshotId', element: <SnapshotPage /> },

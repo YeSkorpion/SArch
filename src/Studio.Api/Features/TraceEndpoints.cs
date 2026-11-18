@@ -23,20 +23,21 @@ public static class TraceEndpoints
         }
 
         var openQuery = db.Requirements.AsNoTracking().Where(item => item.ProjectId == projectId && (item.Status == RequirementStatus.Offen || item.Status == RequirementStatus.InBearbeitung));
-        var missingProcess = RequirementEndpoints.Filtered(db, projectId, null, null, "process", null);
-        var missingScreen = RequirementEndpoints.Filtered(db, projectId, null, null, "screen", null);
-        var missingComponent = RequirementEndpoints.Filtered(db, projectId, null, null, "component", null);
+        var coverage = await CoverageReader.Build(db, projectId, ct);
+        var missingProcess = coverage.Where(item => item.Process.State == CoverageState.Fehlt).ToList();
+        var missingScreen = coverage.Where(item => item.Screen.State == CoverageState.Fehlt).ToList();
+        var missingComponent = coverage.Where(item => item.Component.State == CoverageState.Fehlt).ToList();
         var recent = await Recent(db, projectId, ct);
         return Results.Ok(new OverviewResponse(
             await openQuery.CountAsync(ct),
             (await openQuery.OrderBy(item => item.Key).Take(8).ToListAsync(ct)).Select(RequirementEndpoints.Map).ToList(),
             recent,
-            await missingProcess.CountAsync(ct),
-            (await missingProcess.OrderBy(item => item.Key).Take(8).ToListAsync(ct)).Select(RequirementEndpoints.Map).ToList(),
-            await missingScreen.CountAsync(ct),
-            (await missingScreen.OrderBy(item => item.Key).Take(8).ToListAsync(ct)).Select(RequirementEndpoints.Map).ToList(),
-            await missingComponent.CountAsync(ct),
-            (await missingComponent.OrderBy(item => item.Key).Take(8).ToListAsync(ct)).Select(RequirementEndpoints.Map).ToList(),
+            missingProcess.Count,
+            await MapGaps(db, missingProcess, ct),
+            missingScreen.Count,
+            await MapGaps(db, missingScreen, ct),
+            missingComponent.Count,
+            await MapGaps(db, missingComponent, ct),
             await SharedFlows.AcrossProcesses(db, projectId, ct),
             await db.Requirements.CountAsync(item => item.ProjectId == projectId, ct),
             await db.Diagrams.CountAsync(item => item.ProjectId == projectId && item.Kind == DiagramKind.Process, ct),
@@ -44,6 +45,18 @@ public static class TraceEndpoints
             await db.Screens.CountAsync(item => item.ProjectId == projectId, ct),
             await db.Documents.CountAsync(item => item.ProjectId == projectId, ct),
             await db.Components.CountAsync(item => item.ProjectId == projectId, ct)));
+    }
+
+    private static async Task<List<RequirementResponse>> MapGaps(AppDbContext db, IReadOnlyList<CoverageItem> gaps, CancellationToken ct)
+    {
+        var ids = gaps.Take(8).Select(item => item.Id).ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await db.Requirements.AsNoTracking().Where(item => ids.Contains(item.ArtifactId)).ToListAsync(ct);
+        return ids.Select(id => RequirementEndpoints.Map(rows.First(item => item.ArtifactId == id))).ToList();
     }
 
     private static async Task<IResult> Search(ProjectGuard guard, AppDbContext db, Guid projectId, string? q, HttpContext http, CancellationToken ct)
@@ -274,6 +287,7 @@ public static class TraceEndpoints
             }
         }
 
+        db.ArtifactSources.RemoveRange(await db.ArtifactSources.Where(item => item.ProjectId == projectId && item.ArtifactId == artifactId).ToListAsync(ct));
         var links = await db.ArtifactLinks.Where(item => item.ProjectId == projectId && (item.SourceArtifactId == artifactId || item.TargetArtifactId == artifactId)).ToListAsync(ct);
         db.ArtifactLinks.RemoveRange(links);
         switch (artifact.Type)

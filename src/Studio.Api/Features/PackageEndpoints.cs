@@ -155,6 +155,11 @@ public static class PackageEndpoints
             diagramId = item.DiagramId;
         }
 
+        if (body.AssigneeId is Guid assignee && !await db.Memberships.AnyAsync(item => item.ProjectId == projectId && item.UserId == assignee, ct))
+        {
+            return Problems.BadRequest(http, "Die zugewiesene Person gehört nicht zum Projekt.");
+        }
+
         var author = await db.Users.AsNoTracking().FirstAsync(item => item.Id == gate.UserId, ct);
         db.PackageComments.Add(new PackageComment
         {
@@ -168,6 +173,7 @@ public static class PackageEndpoints
             DiagramId = diagramId,
             AuthorId = gate.UserId,
             AuthorName = author.DisplayName,
+            AssigneeId = body.AssigneeId,
             Text = body.Text.Trim(),
             CreatedAt = clock.GetUtcNow(),
         });
@@ -382,11 +388,11 @@ public static class PackageEndpoints
 
     private static async Task<PackageDetailResponse> Map(AppDbContext db, ChangePackage package, CancellationToken ct)
     {
-        var names = await Names(db, [package.OwnerId, package.ReviewerId ?? Guid.Empty], ct);
         var areas = await AreaNames(db, package.ProjectId, ct);
         var items = await db.ChangePackageItems.AsNoTracking().Where(item => item.PackageId == package.Id).OrderBy(item => item.CreatedAt).ToListAsync(ct);
-        var present = await ArtifactCatalog.Labels(db, package.ProjectId, items.Select(item => item.ArtifactId), ct);
         var comments = await db.PackageComments.AsNoTracking().Where(item => item.PackageId == package.Id).OrderBy(item => item.CreatedAt).ToListAsync(ct);
+        var names = await Names(db, comments.Select(item => item.AssigneeId ?? Guid.Empty).Append(package.OwnerId).Append(package.ReviewerId ?? Guid.Empty), ct);
+        var present = await ArtifactCatalog.Labels(db, package.ProjectId, items.Select(item => item.ArtifactId), ct);
         var commentArtifacts = await ArtifactCatalog.Labels(db, package.ProjectId, comments.Where(item => item.ArtifactId != null).Select(item => item.ArtifactId!.Value), ct);
         var decisions = await db.PackageDecisions.AsNoTracking().Where(item => item.PackageId == package.Id).OrderBy(item => item.CreatedAt).ToListAsync(ct);
         var decisionIds = await DecisionIds(db, present.Values, ct);
@@ -406,7 +412,7 @@ public static class PackageEndpoints
             package.ReviewSnapshotId,
             package.ApprovedSnapshotId,
             items.Select(item => new PackageItemResponse(item.Id, item.ArtifactId, present.TryGetValue(item.ArtifactId, out var label) ? ItemType(label, decisionIds) : item.ArtifactType, present.TryGetValue(item.ArtifactId, out label) ? label.Title : item.ArtifactTitle, item.DiagramId, item.Note, !present.ContainsKey(item.ArtifactId))).ToList(),
-            comments.Select(item => new PackageCommentResponse(item.Id, item.ArtifactId, item.TargetType, item.ArtifactId is Guid id && commentArtifacts.TryGetValue(id, out var label) ? label.Title : item.TargetTitle, item.DiagramId, item.AuthorName, item.Text, item.Status, item.CreatedAt, item.ArtifactId is Guid artifact && !commentArtifacts.ContainsKey(artifact))).ToList(),
+            comments.Select(item => new PackageCommentResponse(item.Id, item.ArtifactId, item.TargetType, item.ArtifactId is Guid id && commentArtifacts.TryGetValue(id, out var label) ? label.Title : item.TargetTitle, item.DiagramId, item.AuthorName, item.Text, item.Status, item.CreatedAt, item.ArtifactId is Guid artifact && !commentArtifacts.ContainsKey(artifact), item.AssigneeId, item.AssigneeId is Guid person ? names.GetValueOrDefault(person) : null)).ToList(),
             decisions.Select(item => new PackageDecisionResponse(item.Id, item.SnapshotId, item.Action, item.Reason, item.ActorName, item.CreatedAt)).ToList());
     }
 
