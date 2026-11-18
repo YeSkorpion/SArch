@@ -56,6 +56,16 @@ public enum ComponentKind
     External,
 }
 
+public enum ComponentSectionKind
+{
+    Table,
+    Endpoint,
+    Operation,
+    Message,
+    View,
+    Integration,
+}
+
 public enum ScreenStatus
 {
     Entwurf,
@@ -96,4 +106,23 @@ public enum CommentStatus
 {
     Offen,
     Erledigt,
+}
+
+public enum OpenPointKind
+{
+    Frage,
+    Annahme,
+    Risiko,
+}
+
+public enum OpenPointStatus
+{
+    Offen,
+    Geklaert,
+}
+
+public enum DataUseRole
+{
+    Speichert,
+    Zeigt,
 }

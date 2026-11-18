@@ -178,6 +178,7 @@ UsageEndpoints.Map(api);
 PackageEndpoints.Map(api);
 SnapshotEndpoints.Map(api);
 TransferEndpoints.Map(api);
+PlanEndpoints.Map(api);
 app.Run();
 
 static Task WriteStatus(HttpResponse response, int status, string title, string detail)

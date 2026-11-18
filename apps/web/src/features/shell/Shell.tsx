@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   Boxes,
+  Cable,
   ChevronDown,
+  CircleHelp,
   FileText,
   FolderTree,
   GitBranch,
@@ -9,11 +11,14 @@ import {
   LayoutDashboard,
   ListChecks,
   Menu as MenuIcon,
+  Milestone,
   PanelsTopLeft,
   Search,
   Settings,
+  Table2,
+  Waypoints,
 } from 'lucide-react'
-import { useDeferredValue, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { forwardRef, useDeferredValue, useEffect, useRef, useState, type ButtonHTMLAttributes, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router'
 import { Brand } from '../../components/Brand'
 import { Button, Hint, Input, Menu, MenuItem, Select } from '../../components/ui'
@@ -28,6 +33,11 @@ const nav = [
   ['Übersicht', '', LayoutDashboard],
   ['Bereiche', 'bereiche', FolderTree],
   ['Anforderungen', 'anforderungen', ListChecks],
+  ['Abdeckung', 'abdeckung', Waypoints],
+  ['Datenmodell', 'daten', Table2],
+  ['Schnittstellen', 'schnittstellen', Cable],
+  ['Lieferung', 'lieferung', Milestone],
+  ['Offene Punkte', 'offen', CircleHelp],
   ['Prozesse', 'prozesse', GitBranch],
   ['UI-Planung', 'ui', PanelsTopLeft],
   ['Systemarchitektur', 'system', Boxes],
@@ -97,9 +107,6 @@ export function Shell({ user }: { user: User }) {
           <Brand to="/projekte" />
         </div>
         <ProjectSwitch projects={projects.data ?? [current]} current={current} onChange={(id) => void navigate(`/projekte/${id}`)} />
-        <Menu trigger={<button className="mx-3 mb-2 truncate text-left text-xs text-muted" type="button">{roleLabel(current.role)}</button>}>
-          <MenuItem onSelect={() => void navigate(`/projekte/${current.id}/einstellungen`)}>Projekteinstellungen</MenuItem>
-        </Menu>
         <ProjectNav projectId={current.id} pathname={location.pathname} />
       </aside>
       <div className="flex h-dvh min-w-0 flex-col">
@@ -135,8 +142,9 @@ export function Shell({ user }: { user: User }) {
           >
             Darstellung
           </Button>
-          <Menu trigger={<button className="hidden max-w-32 truncate text-sm text-muted xl:inline" type="button">{user.displayName}</button>}>
-            <p className="px-2 py-1 text-xs text-muted">Rolle: {roleLabel(current.role)}</p>
+          <Menu trigger={<PersonButton name={user.displayName} role={roleLabel(current.role)} />}>
+            <p className="px-2 py-1 text-xs text-muted">{user.email}</p>
+            <MenuItem onSelect={() => void navigate(`/projekte/${current.id}/einstellungen`)}>Projekteinstellungen</MenuItem>
           </Menu>
         </header>
         <WorkspaceTabs tabs={tabs.tabs} activeId={tabs.activeId} onSelect={tabs.select} onClose={tabs.close} onNew={() => tabs.openNew(`/projekte/${current.id}`)} />
@@ -148,9 +156,6 @@ export function Shell({ user }: { user: User }) {
               <div className="px-2 pb-3 pt-1" onClick={() => setNavOpen(false)}>
                 <Brand to="/projekte" />
               </div>
-              <Menu trigger={<button className="px-2 pb-2 text-left text-xs text-muted" type="button">{roleLabel(current.role)}</button>}>
-                <MenuItem onSelect={() => { setNavOpen(false); void navigate(`/projekte/${current.id}/einstellungen`) }}>Projekteinstellungen</MenuItem>
-              </Menu>
               <ProjectNav projectId={current.id} pathname={location.pathname} onNavigate={() => setNavOpen(false)} />
             </aside>
           </div>
@@ -165,6 +170,24 @@ export function Shell({ user }: { user: User }) {
     </div>
   )
 }
+
+function accountInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase()
+  return name.trim().slice(0, 2).toUpperCase() || '?'
+}
+
+const PersonButton = forwardRef<HTMLButtonElement, { name: string; role: string } & ButtonHTMLAttributes<HTMLButtonElement>>(function PersonButton({ name, role, ...props }, ref) {
+  return (
+    <button ref={ref} {...props} className="flex max-w-56 items-center gap-2 rounded-full border border-line bg-card py-1 pr-3 pl-1 text-left hover:border-accent/40" type="button" aria-label={`${name}, ${role}`}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground" aria-hidden="true">{accountInitials(name)}</span>
+      <span className="hidden min-w-0 lg:grid">
+        <span className="truncate text-sm font-medium leading-tight">{name}</span>
+        <span className="truncate text-xs leading-tight text-muted">{role}</span>
+      </span>
+    </button>
+  )
+})
 
 function ProjectSwitch({ projects, current, onChange, compact = false }: { projects: Project[]; current: Project; onChange: (id: string) => void; compact?: boolean }) {
   return (
@@ -488,6 +511,11 @@ function breadcrumb(pathname: string, projectName: string, diagram?: Diagram, ar
   const labels: Record<string, string> = {
     bereiche: 'Bereiche',
     anforderungen: 'Anforderungen',
+    abdeckung: 'Abdeckung',
+    daten: 'Datenmodell',
+    schnittstellen: 'Schnittstellen',
+    lieferung: 'Lieferung',
+    offen: 'Offene Punkte',
     prozesse: 'Prozesse',
     ui: 'UI-Planung',
     system: 'Systemarchitektur',

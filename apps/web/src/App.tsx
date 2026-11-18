@@ -11,6 +11,7 @@ import { ProjectsPage } from './features/projects/ProjectsPage'
 import { RequirementDetailPage, RequirementsPage } from './features/requirements/RequirementsPages'
 import { ScreenEditorPage, ScreensPage } from './features/screens/ScreenPages'
 import { ChangesPage, PackageDetailPage, SnapshotPage } from './features/changes/ChangesPages'
+import { ContractsPage, CoveragePage, DataModelPage, DeliveryPage, OpenPointsPage } from './features/plan/PlanPages'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { Shell } from './features/shell/Shell'
 import { StudioProvider } from './components/ui'
@@ -38,6 +39,11 @@ const router = createBrowserRouter([
           { path: 'bereiche/:areaId', element: <AreaDetailPage /> },
           { path: 'anforderungen', element: <RequirementsPage /> },
           { path: 'anforderungen/:requirementId', element: <RequirementDetailPage /> },
+          { path: 'abdeckung', element: <CoveragePage /> },
+          { path: 'daten', element: <DataModelPage /> },
+          { path: 'schnittstellen', element: <ContractsPage /> },
+          { path: 'lieferung', element: <DeliveryPage /> },
+          { path: 'offen', element: <OpenPointsPage /> },
           { path: 'prozesse', element: <DiagramListPage kind="Process" /> },
           { path: 'diagramme/:diagramId', element: <DiagramEditorPage /> },
           { path: 'ui', element: <ScreensPage /> },

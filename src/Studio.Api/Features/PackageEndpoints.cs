@@ -34,10 +34,12 @@ public static class PackageEndpoints
         var error = await ValidateMeta(db, http, projectId, body.Title, body.Goal, body.AreaId, body.OwnerId, body.ReviewerId, ct);
         if (error is not null) return error;
         var now = clock.GetUtcNow();
+        var sort = await db.ChangePackages.Where(item => item.ProjectId == projectId).Select(item => (int?)item.SortOrder).MaxAsync(ct) ?? 0;
         var package = new ChangePackage
         {
             Id = Guid.CreateVersion7(),
             ProjectId = projectId,
+            SortOrder = sort + 1,
             Title = body.Title.Trim(),
             Goal = body.Goal.Trim(),
             AreaId = body.AreaId,

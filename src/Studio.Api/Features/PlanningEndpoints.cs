@@ -6,6 +6,7 @@ public static partial class PlanningEndpoints
 {
     public static void Map(RouteGroupBuilder group)
     {
+        ComponentSchemaEndpoints.Map(group);
         group.MapGet("/projects/{projectId:guid}/components", ListComponents);
         group.MapPost("/projects/{projectId:guid}/components", CreateComponent);
         group.MapGet("/projects/{projectId:guid}/components/{componentId:guid}", GetComponent);
@@ -28,7 +29,8 @@ public static partial class PlanningEndpoints
         var counts = await db.DiagramNodes.AsNoTracking().Where(item => item.ProjectId == projectId && item.ComponentId != null)
             .GroupBy(item => item.ComponentId).Select(group => new { Id = group.Key, Count = group.Count() }).ToListAsync(ct);
         var countMap = counts.ToDictionary(item => item.Id!.Value, item => item.Count);
-        return Results.Ok(items.Select(item => Map(item, countMap.GetValueOrDefault(item.ArtifactId))).ToList());
+        var sections = await db.ComponentSections.AsNoTracking().Where(item => item.ProjectId == projectId).Select(item => new { item.ComponentId, item.Kind }).ToListAsync(ct);
+        return Results.Ok(items.Select(item => Map(item, countMap.GetValueOrDefault(item.ArtifactId), sections.Count(section => section.ComponentId == item.ArtifactId && section.Kind == ComponentSchemaEndpoints.SectionKindFor(item.Kind)))).ToList());
     }
 
     private static async Task<IResult> CreateComponent(ProjectGuard guard, AppDbContext db, TimeProvider clock, Guid projectId, CreateComponentRequest body, HttpContext http, CancellationToken ct)
@@ -80,7 +82,8 @@ public static partial class PlanningEndpoints
         }
 
         var count = await db.DiagramNodes.CountAsync(item => item.ComponentId == componentId, ct);
-        return Results.Ok(Map(component, count));
+        var details = await DetailCount(db, projectId, componentId, component.Kind, ct);
+        return Results.Ok(Map(component, count, details));
     }
 
     private static async Task<IResult> UpdateComponent(ProjectGuard guard, AppDbContext db, TimeProvider clock, Guid projectId, Guid componentId, UpdateComponentRequest body, HttpContext http, CancellationToken ct)
@@ -134,7 +137,7 @@ public static partial class PlanningEndpoints
         }
 
         await tx.CommitAsync(ct);
-        return Results.Ok(Map(component, placements.Count));
+        return Results.Ok(Map(component, placements.Count, await DetailCount(db, projectId, componentId, component.Kind, ct)));
     }
 
     private static async Task<IResult> ListScreens(ProjectGuard guard, AppDbContext db, Guid projectId, HttpContext http, CancellationToken ct)
@@ -278,8 +281,14 @@ public static partial class PlanningEndpoints
         return Results.Ok(Map(screen));
     }
 
-    private static ComponentResponse Map(Component item, int placements) =>
-        new(item.ArtifactId, item.Name, item.Description, item.Kind, item.Technology, item.Version, placements, item.UpdatedAt);
+    private static ComponentResponse Map(Component item, int placements, int details = 0) =>
+        new(item.ArtifactId, item.Name, item.Description, item.Kind, item.Technology, item.Version, placements, details, item.UpdatedAt);
+
+    private static async Task<int> DetailCount(AppDbContext db, Guid projectId, Guid componentId, ComponentKind kind, CancellationToken ct)
+    {
+        var sectionKind = ComponentSchemaEndpoints.SectionKindFor(kind);
+        return await db.ComponentSections.CountAsync(item => item.ProjectId == projectId && item.ComponentId == componentId && item.Kind == sectionKind, ct);
+    }
 
     private static ScreenResponse Map(Screen item) =>
         new(item.ArtifactId, item.Name, item.Route, item.Purpose, item.Status, item.Notes, item.WireframeJson, item.Version, item.UpdatedAt);

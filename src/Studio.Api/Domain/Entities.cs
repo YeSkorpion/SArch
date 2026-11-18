@@ -231,6 +231,7 @@ public sealed class ChangePackage
     public Guid OwnerId { get; set; }
     public Guid? ReviewerId { get; set; }
     public PackageStatus Status { get; set; } = PackageStatus.Entwurf;
+    public int SortOrder { get; set; }
     public int Version { get; set; } = 1;
     public Guid? ReviewSnapshotId { get; set; }
     public Guid? ApprovedSnapshotId { get; set; }
@@ -293,4 +294,97 @@ public sealed class ProjectSnapshot
     public DateTimeOffset CreatedAt { get; set; }
     public string ContentHash { get; set; } = "";
     public string PayloadJson { get; set; } = "{}";
+}
+
+public sealed class RequirementCriterion
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid RequirementId { get; set; }
+    public int Position { get; set; }
+    public string Text { get; set; } = "";
+    public bool Done { get; set; }
+}
+
+public sealed class OpenPoint
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public OpenPointKind Kind { get; set; }
+    public string Title { get; set; } = "";
+    public string Detail { get; set; } = "";
+    public OpenPointStatus Status { get; set; } = OpenPointStatus.Offen;
+    public Guid? ArtifactId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class DataEntity
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class DataField
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid EntityId { get; set; }
+    public int Position { get; set; }
+    public string Name { get; set; } = "";
+    public string FieldType { get; set; } = "";
+    public bool Required { get; set; }
+    public string Notes { get; set; } = "";
+}
+
+public sealed class DataUse
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid EntityId { get; set; }
+    public Guid ArtifactId { get; set; }
+    public DataUseRole Role { get; set; }
+}
+
+public sealed class ComponentSection
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid ComponentId { get; set; }
+    public ComponentSectionKind Kind { get; set; }
+    public int Position { get; set; }
+    public string Title { get; set; } = "";
+    public string Subtitle { get; set; } = "";
+    public string Description { get; set; } = "";
+}
+
+public sealed class ComponentColumn
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid SectionId { get; set; }
+    public int Position { get; set; }
+    public string Name { get; set; } = "";
+    public string DataType { get; set; } = "";
+    public bool Required { get; set; }
+    public bool IsKey { get; set; }
+    public string Role { get; set; } = "";
+    public string Notes { get; set; } = "";
+}
+
+public sealed class ServiceContract
+{
+    public Guid Id { get; set; }
+    public Guid ProjectId { get; set; }
+    public string Name { get; set; } = "";
+    public Guid ProviderId { get; set; }
+    public Guid? ConsumerId { get; set; }
+    public string Operation { get; set; } = "";
+    public string Input { get; set; } = "";
+    public string Output { get; set; } = "";
+    public string Errors { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; }
 }

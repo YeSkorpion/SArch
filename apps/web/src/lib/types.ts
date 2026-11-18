@@ -78,8 +78,12 @@ export type Component = {
   technology: string | null
   version: number
   placementCount: number
+  detailCount: number
   updatedAt: string
 }
+export type SchemaColumn = { id: string; name: string; dataType: string; required: boolean; isKey: boolean; role: string; notes: string; position: number }
+export type SchemaSectionKind = 'Table' | 'Endpoint' | 'Operation' | 'Message' | 'View' | 'Integration'
+export type SchemaSection = { id: string; kind: SchemaSectionKind; title: string; subtitle: string; description: string; position: number; columns: SchemaColumn[] }
 export type Screen = {
   id: string
   name: string
@@ -285,6 +289,50 @@ export type SnapshotDetail = SnapshotSummary & {
   liveIds: string[]
 }
 export type SnapshotChange = { change: 'added' | 'changed' | 'removed' | 'position'; type: string; id: string; title: string; fields: string[] }
+export type CoverageLink = { id: string; title: string; diagramId: string | null }
+export type CoverageRow = {
+  id: string
+  key: string
+  title: string
+  status: RequirementStatus
+  criteria: number
+  criteriaOpen: number
+  steps: CoverageLink[]
+  screens: CoverageLink[]
+  components: CoverageLink[]
+  decisions: CoverageLink[]
+}
+export type Criterion = { id: string; text: string; done: boolean; position: number }
+export type OpenPointKind = 'Frage' | 'Annahme' | 'Risiko'
+export type OpenPointStatus = 'Offen' | 'Geklaert'
+export type OpenPoint = {
+  id: string
+  kind: OpenPointKind
+  title: string
+  detail: string
+  status: OpenPointStatus
+  artifactId: string | null
+  artifactTitle: string | null
+  updatedAt: string
+}
+export type DataField = { id: string; name: string; fieldType: string; required: boolean; notes: string; position: number }
+export type DataUse = { id: string; artifactId: string; artifactType: string; artifactTitle: string; role: 'Speichert' | 'Zeigt' }
+export type DataEntity = { id: string; name: string; description: string; fields: DataField[]; uses: DataUse[] }
+export type ServiceContract = {
+  id: string
+  name: string
+  providerId: string
+  providerName: string
+  consumerId: string | null
+  consumerName: string | null
+  operation: string
+  input: string
+  output: string
+  errors: string
+}
+export type DeliveryRequirement = { id: string; key: string; title: string; status: RequirementStatus }
+export type DeliverySlice = { id: string; title: string; status: PackageStatus; sortOrder: number; requirements: DeliveryRequirement[] }
+export type DeliveryPlan = { slices: DeliverySlice[]; unassigned: DeliveryRequirement[] }
 export type TransferPreview = {
   valid: boolean
   errors: string[]

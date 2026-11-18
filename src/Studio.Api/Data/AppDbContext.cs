@@ -27,6 +27,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PackageComment> PackageComments => Set<PackageComment>();
     public DbSet<PackageDecision> PackageDecisions => Set<PackageDecision>();
     public DbSet<ProjectSnapshot> ProjectSnapshots => Set<ProjectSnapshot>();
+    public DbSet<RequirementCriterion> RequirementCriteria => Set<RequirementCriterion>();
+    public DbSet<OpenPoint> OpenPoints => Set<OpenPoint>();
+    public DbSet<DataEntity> DataEntities => Set<DataEntity>();
+    public DbSet<DataField> DataFields => Set<DataField>();
+    public DbSet<DataUse> DataUses => Set<DataUse>();
+    public DbSet<ServiceContract> ServiceContracts => Set<ServiceContract>();
+    public DbSet<ComponentSection> ComponentSections => Set<ComponentSection>();
+    public DbSet<ComponentColumn> ComponentColumns => Set<ComponentColumn>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -268,6 +276,91 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             b.Property(x => x.Reason).HasMaxLength(2000);
             b.Property(x => x.ActorName).HasMaxLength(160);
             b.HasOne<ChangePackage>().WithMany().HasForeignKey(x => x.PackageId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RequirementCriterion>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Text).HasMaxLength(400);
+            b.HasIndex(x => new { x.RequirementId, x.Position });
+            b.HasOne<Requirement>().WithMany().HasForeignKey(x => x.RequirementId).HasPrincipalKey(x => x.ArtifactId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<OpenPoint>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            b.Property(x => x.Title).HasMaxLength(160);
+            b.Property(x => x.Detail).HasMaxLength(2000);
+            b.HasIndex(x => new { x.ProjectId, x.Status });
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<DataEntity>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Name).HasMaxLength(160);
+            b.Property(x => x.Description).HasMaxLength(2000);
+            b.HasIndex(x => new { x.ProjectId, x.Name }).IsUnique();
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<DataField>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Name).HasMaxLength(80);
+            b.Property(x => x.FieldType).HasMaxLength(40);
+            b.Property(x => x.Notes).HasMaxLength(500);
+            b.HasIndex(x => new { x.EntityId, x.Position });
+            b.HasOne<DataEntity>().WithMany().HasForeignKey(x => x.EntityId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<DataUse>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Role).HasConversion<string>().HasMaxLength(32);
+            b.HasIndex(x => new { x.EntityId, x.ArtifactId, x.Role }).IsUnique();
+            b.HasOne<DataEntity>().WithMany().HasForeignKey(x => x.EntityId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ComponentSection>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            b.Property(x => x.Title).HasMaxLength(160);
+            b.Property(x => x.Subtitle).HasMaxLength(160);
+            b.Property(x => x.Description).HasMaxLength(2000);
+            b.HasIndex(x => new { x.ComponentId, x.Position });
+            b.HasOne<Component>().WithMany().HasForeignKey(x => x.ComponentId).HasPrincipalKey(x => x.ArtifactId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ComponentColumn>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Name).HasMaxLength(80);
+            b.Property(x => x.DataType).HasMaxLength(40);
+            b.Property(x => x.Role).HasMaxLength(32);
+            b.Property(x => x.Notes).HasMaxLength(500);
+            b.HasIndex(x => new { x.SectionId, x.Position });
+            b.HasOne<ComponentSection>().WithMany().HasForeignKey(x => x.SectionId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ServiceContract>(b =>
+        {
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Name).HasMaxLength(160);
+            b.Property(x => x.Operation).HasMaxLength(160);
+            b.Property(x => x.Input).HasMaxLength(2000);
+            b.Property(x => x.Output).HasMaxLength(2000);
+            b.Property(x => x.Errors).HasMaxLength(2000);
+            b.HasIndex(x => new { x.ProjectId, x.Name }).IsUnique();
             b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
         });
 

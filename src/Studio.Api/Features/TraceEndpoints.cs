@@ -251,6 +251,29 @@ public static class TraceEndpoints
             await ClearIncomingNavigations(db, projectId, artifactId, now, ct);
         }
 
+        var points = await db.OpenPoints.Where(item => item.ProjectId == projectId && item.ArtifactId == artifactId).ToListAsync(ct);
+        foreach (var point in points)
+        {
+            point.ArtifactId = null;
+        }
+
+        db.DataUses.RemoveRange(await db.DataUses.Where(item => item.ProjectId == projectId && item.ArtifactId == artifactId).ToListAsync(ct));
+        if (artifact.Type == ArtifactType.Component)
+        {
+            var contracts = await db.ServiceContracts.Where(item => item.ProjectId == projectId && (item.ProviderId == artifactId || item.ConsumerId == artifactId)).ToListAsync(ct);
+            foreach (var contract in contracts)
+            {
+                if (contract.ProviderId == artifactId)
+                {
+                    db.ServiceContracts.Remove(contract);
+                }
+                else
+                {
+                    contract.ConsumerId = null;
+                }
+            }
+        }
+
         var links = await db.ArtifactLinks.Where(item => item.ProjectId == projectId && (item.SourceArtifactId == artifactId || item.TargetArtifactId == artifactId)).ToListAsync(ct);
         db.ArtifactLinks.RemoveRange(links);
         switch (artifact.Type)

@@ -12,6 +12,7 @@ import type { Impact, Page, Requirement, RequirementPriority, RequirementStatus 
 import { LinkPanel } from '../links/LinkPanel'
 import { UsagePanel } from '../usage/UsagePanel'
 import type { ProjectOutlet } from '../shell/Shell'
+import { AcceptancePanel } from '../plan/PlanPages'
 
 const statuses: RequirementStatus[] = ['Offen', 'InBearbeitung', 'Erledigt', 'Zurueckgestellt']
 const priorities: RequirementPriority[] = ['Niedrig', 'Mittel', 'Hoch', 'Kritisch']
@@ -270,6 +271,7 @@ function RequirementEditor({ projectId, canWrite, initial, onReload }: { project
         <Field label="Tags" hint="Kommagetrennt, 2 bis 30 Zeichen">
           <Input value={draft.tags.join(', ')} disabled={!canWrite} onChange={(event) => update({ ...draft, tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
         </Field>
+        <AcceptancePanel projectId={projectId} requirementId={initial.id} canWrite={canWrite} />
         {canWrite ? <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Anforderung löschen</Button> : null}
         <Modal open={deleteOpen} onOpenChange={setDeleteOpen} title="Anforderung löschen">
           {impact.isLoading ? <p>Auswirkungen werden geladen …</p> : null}

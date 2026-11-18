@@ -141,6 +141,7 @@ public sealed record ComponentResponse(
     string? Technology,
     int Version,
     int PlacementCount,
+    int DetailCount,
     DateTimeOffset UpdatedAt);
 
 public sealed record CreateComponentRequest(string Name, string? Description, ComponentKind Kind, string? Technology);

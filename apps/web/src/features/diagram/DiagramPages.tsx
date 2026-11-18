@@ -31,6 +31,7 @@ import { LinkPanel } from '../links/LinkPanel'
 import { UsagePanel } from '../usage/UsagePanel'
 import { ImpactList } from '../requirements/RequirementsPages'
 import type { ProjectOutlet } from '../shell/Shell'
+import { ComponentSchema, schemaCountLabel } from './ComponentSchema'
 import '@xyflow/react/dist/style.css'
 
 type NodeData = {
@@ -1023,7 +1024,7 @@ export function ComponentsPage() {
               <span className="text-xs font-medium text-accent">{componentKindLabel(component.kind)}</span>
               <span className="font-semibold">{component.name}</span>
               {component.technology || component.description ? <span className="line-clamp-2 text-sm text-muted">{component.technology || component.description}</span> : null}
-              <span className="mt-auto text-xs text-muted">{component.placementCount} {component.placementCount === 1 ? 'Platzierung' : 'Platzierungen'}</span>
+              <span className="mt-auto text-xs text-muted">{component.placementCount} {component.placementCount === 1 ? 'Platzierung' : 'Platzierungen'}{component.detailCount > 0 ? ` · ${schemaCountLabel(component.kind, component.detailCount)}` : ''}</span>
             </Link>
           </li>
         ))}
@@ -1143,6 +1144,7 @@ export function ComponentDetailPage() {
           <UsagePanel projectId={project.id} artifactId={componentId} title={draft.name} />
         </div>
       </aside>
+      <ComponentSchema projectId={project.id} componentId={componentId} kind={draft.kind} canWrite={canWrite} />
     </div>
   )
 }

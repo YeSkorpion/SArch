@@ -454,6 +454,10 @@ namespace Studio.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("reviewer_id");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -608,6 +612,252 @@ namespace Studio.Api.Data.Migrations
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("SearchText"), new[] { "gin_trgm_ops" });
 
                     b.ToTable("components", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.ComponentColumn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("data_type");
+
+                    b.Property<bool>("IsKey")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_key");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("boolean")
+                        .HasColumnName("required");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("role");
+
+                    b.Property<Guid>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_component_columns");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_component_columns_project_id");
+
+                    b.HasIndex("SectionId", "Position")
+                        .HasDatabaseName("ix_component_columns_section_id_position");
+
+                    b.ToTable("component_columns", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.ComponentSection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ComponentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("component_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Subtitle")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("subtitle");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_component_sections");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_component_sections_project_id");
+
+                    b.HasIndex("ComponentId", "Position")
+                        .HasDatabaseName("ix_component_sections_component_id_position");
+
+                    b.ToTable("component_sections", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.DataEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_data_entities");
+
+                    b.HasIndex("ProjectId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_data_entities_project_id_name");
+
+                    b.ToTable("data_entities", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.DataField", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("FieldType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("field_type");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("boolean")
+                        .HasColumnName("required");
+
+                    b.HasKey("Id")
+                        .HasName("pk_data_fields");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_data_fields_project_id");
+
+                    b.HasIndex("EntityId", "Position")
+                        .HasDatabaseName("ix_data_fields_entity_id_position");
+
+                    b.ToTable("data_fields", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.DataUse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("artifact_id");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("role");
+
+                    b.HasKey("Id")
+                        .HasName("pk_data_uses");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_data_uses_project_id");
+
+                    b.HasIndex("EntityId", "ArtifactId", "Role")
+                        .IsUnique()
+                        .HasDatabaseName("ix_data_uses_entity_id_artifact_id_role");
+
+                    b.ToTable("data_uses", (string)null);
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.Diagram", b =>
@@ -980,6 +1230,62 @@ namespace Studio.Api.Data.Migrations
                         .HasDatabaseName("ix_document_revisions_document_id_project_id");
 
                     b.ToTable("document_revisions", (string)null);
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.OpenPoint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("artifact_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("detail");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_open_points");
+
+                    b.HasIndex("ProjectId", "Status")
+                        .HasDatabaseName("ix_open_points_project_id_status");
+
+                    b.ToTable("open_points", (string)null);
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.PackageComment", b =>
@@ -1365,6 +1671,47 @@ namespace Studio.Api.Data.Migrations
                     b.ToTable("requirements", (string)null);
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.RequirementCriterion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Done")
+                        .HasColumnType("boolean")
+                        .HasColumnName("done");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("RequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_requirement_criteria");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_requirement_criteria_project_id");
+
+                    b.HasIndex("RequirementId", "Position")
+                        .HasDatabaseName("ix_requirement_criteria_requirement_id_position");
+
+                    b.ToTable("requirement_criteria", (string)null);
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.SavedView", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1542,6 +1889,69 @@ namespace Studio.Api.Data.Migrations
                     b.ToTable("screen_navigations", (string)null);
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.ServiceContract", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ConsumerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("consumer_id");
+
+                    b.Property<string>("Errors")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("errors");
+
+                    b.Property<string>("Input")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("input");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("operation");
+
+                    b.Property<string>("Output")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("output");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("ProviderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("provider_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_service_contracts");
+
+                    b.HasIndex("ProjectId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_service_contracts_project_id_name");
+
+                    b.ToTable("service_contracts", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -1686,6 +2096,84 @@ namespace Studio.Api.Data.Migrations
                     b.Navigation("Artifact");
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.ComponentColumn", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_component_columns_projects_project_id");
+
+                    b.HasOne("Studio.Api.Domain.ComponentSection", null)
+                        .WithMany()
+                        .HasForeignKey("SectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_component_columns_component_sections_section_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.ComponentSection", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Component", null)
+                        .WithMany()
+                        .HasForeignKey("ComponentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_component_sections_components_component_id");
+
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_component_sections_projects_project_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.DataEntity", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_entities_projects_project_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.DataField", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.DataEntity", null)
+                        .WithMany()
+                        .HasForeignKey("EntityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_fields_data_entities_entity_id");
+
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_fields_projects_project_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.DataUse", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.DataEntity", null)
+                        .WithMany()
+                        .HasForeignKey("EntityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_uses_data_entities_entity_id");
+
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_data_uses_projects_project_id");
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.Diagram", b =>
                 {
                     b.HasOne("Studio.Api.Domain.Area", null)
@@ -1797,6 +2285,16 @@ namespace Studio.Api.Data.Migrations
                         .HasConstraintName("fk_document_revisions_documents_document_id_project_id");
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.OpenPoint", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_open_points_projects_project_id");
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.PackageComment", b =>
                 {
                     b.HasOne("Studio.Api.Domain.ChangePackage", null)
@@ -1891,6 +2389,23 @@ namespace Studio.Api.Data.Migrations
                     b.Navigation("Artifact");
                 });
 
+            modelBuilder.Entity("Studio.Api.Domain.RequirementCriterion", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_requirement_criteria_projects_project_id");
+
+                    b.HasOne("Studio.Api.Domain.Requirement", null)
+                        .WithMany()
+                        .HasForeignKey("RequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_requirement_criteria_requirements_requirement_id");
+                });
+
             modelBuilder.Entity("Studio.Api.Domain.SavedView", b =>
                 {
                     b.HasOne("Studio.Api.Domain.Area", null)
@@ -1937,6 +2452,16 @@ namespace Studio.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_screen_navigations_screens_target_screen_id_project_id");
+                });
+
+            modelBuilder.Entity("Studio.Api.Domain.ServiceContract", b =>
+                {
+                    b.HasOne("Studio.Api.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_service_contracts_projects_project_id");
                 });
 
             modelBuilder.Entity("Studio.Api.Domain.Diagram", b =>
