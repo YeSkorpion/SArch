@@ -14,17 +14,18 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react'
-import { Circle, Diamond, MoreHorizontal, Octagon, Square, Zap } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Circle, Diamond, MoreHorizontal, Octagon, Square, X, Zap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
+import { DiagramSvg, EmptyPreview, PreviewFrame, diagramStepCount, useDiagramPreview, useInView } from '../../components/previews'
 import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
-import { Button, Field, Input, Menu, MenuItem, Modal, Select, Textarea } from '../../components/ui'
+import { Badge, Button, Field, Input, Menu, MenuItem, Modal, Select, Textarea } from '../../components/ui'
 import { ApiError, api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
 import { motionMs, readFlag, rememberFlag, useRememberScroll } from '../../lib/scroll'
 import { analyzeProcess } from '../../lib/diagramCheck'
-import { nodeTypeLabel } from '../../lib/labels'
+import { componentKindLabel, nodeTypeLabel } from '../../lib/labels'
 import type { AffectedFlow, Area, Component, Diagram, DiagramKind, DiagramSummary, EdgeKind, Impact, SavedView } from '../../lib/types'
 import { LinkPanel } from '../links/LinkPanel'
 import { UsagePanel } from '../usage/UsagePanel'
@@ -70,6 +71,7 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
   const [open, setOpen] = useState(false)
   const [viewOpen, setViewOpen] = useState(false)
   const [viewName, setViewName] = useState('')
+  const [viewQuery, setViewQuery] = useState('')
   const [pendingDelete, setPendingDelete] = useState<DiagramSummary | null>(null)
   const navigate = useNavigate()
   const client = useQueryClient()
@@ -115,7 +117,7 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
   const filtered = Boolean(area || term)
   const hasDiagrams = (diagrams.data?.length ?? 0) > 0
   return (
-    <div className="grid w-full max-w-6xl gap-6 px-4 py-6 md:px-6">
+    <div className="grid w-full gap-6 px-4 py-6 md:px-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
@@ -134,13 +136,33 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
         {filtered ? <Button size="sm" type="button" variant="ghost" onClick={() => filter({ bereich: '', q: '' })}>Filter zurücksetzen</Button> : null}
       </div>
       {views.data && views.data.length > 0 ? (
-        <nav aria-label="Gespeicherte Ansichten" className="flex flex-wrap gap-2">
-          {views.data.map((view) => (
-            <span key={view.id} className="inline-flex items-center gap-1 rounded-md border border-line bg-nav px-2 py-1 text-sm">
-              <Link className="underline" to={viewHref(project.id, kind, view)}>{view.name}</Link>
-              {canWrite ? <Button size="sm" type="button" variant="ghost" aria-label={`Ansicht entfernen: ${view.name}`} onClick={() => removeView.mutate(view.id)}>Ansicht entfernen</Button> : null}
-            </span>
-          ))}
+        <nav aria-label="Gespeicherte Ansichten" className="overflow-hidden rounded-xl border border-line bg-card">
+          <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+            <h2 className="text-sm font-semibold">Gespeicherte Ansichten</h2>
+            <span className="text-xs text-muted">{views.data.length}</span>
+            {views.data.length > 6 ? (
+              <Input className="h-8 w-full sm:ml-auto sm:max-w-xs" aria-label="Ansichten suchen" placeholder="Ansichten suchen" value={viewQuery} onChange={(event) => setViewQuery(event.target.value)} />
+            ) : null}
+          </div>
+          {shownViews(views.data, viewQuery).length === 0 ? <p className="px-3 py-2 text-sm text-muted">Keine Treffer.</p> : (
+            <ul className={views.data.length > 6 ? 'max-h-52 overflow-auto' : undefined}>
+              {shownViews(views.data, viewQuery).map((view) => {
+                const matches = shownViews(views.data, viewQuery).filter((item) => viewMatches(item, area, term))
+                const active = matches.length === 1 && matches[0].id === view.id
+                return (
+                  <li key={view.id} className={`flex items-center gap-2 border-b border-line px-3 py-1.5 last:border-b-0 ${active ? 'bg-accent/10' : ''}`}>
+                    <Link className="min-w-0 flex-1 truncate text-sm font-medium hover:text-accent" aria-current={active ? 'page' : undefined} to={viewHref(project.id, kind, view)}>{view.name}</Link>
+                    <span className="hidden max-w-[45%] truncate text-xs text-muted sm:block">{viewSummary(view)}</span>
+                    {canWrite ? (
+                      <button className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-background hover:text-foreground" type="button" aria-label={`Ansicht entfernen: ${view.name}`} onClick={() => removeView.mutate(view.id)}>
+                        <X size={14} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </nav>
       ) : null}
       {diagrams.isLoading ? <Loading /> : null}
@@ -156,18 +178,11 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
         />
       ) : null}
       {[...groups.entries()].map(([group, items]) => (
-        <section key={group} className="grid gap-2">
+        <section key={group} className="grid gap-3">
           <h2 className="text-sm font-semibold text-muted">{group}</h2>
-          <ul className="grid gap-2">
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((diagram) => (
-              <li key={diagram.id} className="flex items-center gap-2 border-b border-line">
-                <Link className="min-w-0 flex-1 py-2.5 font-medium break-words" to={`/projekte/${project.id}/diagramme/${diagram.id}`}>{diagram.name}</Link>
-                {canWrite ? (
-                  <Menu trigger={<button className="grid h-8 w-8 place-items-center rounded-md hover:bg-background" type="button" aria-label={`Aktionen für ${diagram.name}`}><MoreHorizontal size={16} aria-hidden="true" /></button>}>
-                    <MenuItem onSelect={() => setPendingDelete(diagram)}>Löschen</MenuItem>
-                  </Menu>
-                ) : null}
-              </li>
+              <DiagramCard key={diagram.id} projectId={project.id} diagram={diagram} kind={kind} canWrite={canWrite} onDelete={() => setPendingDelete(diagram)} />
             ))}
           </ul>
         </section>
@@ -203,6 +218,37 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
   )
 }
 
+function DiagramCard({ projectId, diagram, kind, canWrite, onDelete }: { projectId: string; diagram: DiagramSummary; kind: DiagramKind; canWrite: boolean; onDelete: () => void }) {
+  const { ref, visible } = useInView<HTMLLIElement>()
+  const detail = useDiagramPreview(projectId, diagram.id, visible)
+  const steps = detail.data ? diagramStepCount(detail.data.nodes) : 0
+  const meta = [diagram.areaName, steps > 0 ? `${steps} ${steps === 1 ? 'Schritt' : 'Schritte'}` : null].filter(Boolean).join(' · ')
+  return (
+    <li ref={ref} className="relative rounded-xl border border-line bg-card">
+      <Link className="block rounded-xl hover:bg-background/70" to={`/projekte/${projectId}/diagramme/${diagram.id}`}>
+        <div className="p-2 pb-0">
+          <PreviewFrame>
+            {!visible || detail.isLoading || !detail.data ? <div className="h-full" /> : detail.data.nodes.length === 0 ? (
+              <EmptyPreview icon="diagram" label="Noch kein Entwurf" />
+            ) : (
+              <DiagramSvg diagram={detail.data} kind={kind} />
+            )}
+          </PreviewFrame>
+        </div>
+        <span className="block truncate px-3 pt-2 font-medium">{diagram.name}</span>
+        <span className="block truncate px-3 pb-3 text-xs text-muted">{meta || 'Ohne Bereich'}</span>
+      </Link>
+      {canWrite ? (
+        <div className="absolute top-3 right-3">
+          <Menu trigger={<button className="grid h-8 w-8 place-items-center rounded-md bg-card/90 hover:bg-background" type="button" aria-label={`Aktionen für ${diagram.name}`}><MoreHorizontal size={16} aria-hidden="true" /></button>}>
+            <MenuItem onSelect={onDelete}>Löschen</MenuItem>
+          </Menu>
+        </div>
+      ) : null}
+    </li>
+  )
+}
+
 function ArchitectureTabs({ projectId, current }: { projectId: string; current: 'diagrams' | 'components' }) {
   const item = (active: boolean) => `rounded-md px-3 py-1.5 text-sm ${active ? 'bg-card font-semibold text-accent' : 'text-muted hover:bg-card'}`
   return (
@@ -219,6 +265,22 @@ function diagramListUrl(projectId: string, kind: DiagramKind, area: string, term
   else if (area) params.set('areaId', area)
   if (term) params.set('q', term)
   return `/api/v1/projects/${projectId}/diagrams?${params.toString()}`
+}
+
+function shownViews(views: SavedView[], query: string) {
+  const term = query.trim().toLowerCase()
+  if (!term) return views
+  return views.filter((view) => `${view.name} ${view.areaName ?? ''} ${view.query}`.toLowerCase().includes(term))
+}
+
+function viewMatches(view: SavedView, area: string, term: string) {
+  const viewArea = view.unassigned ? 'none' : view.areaId ?? ''
+  return viewArea === area && view.query === term
+}
+
+function viewSummary(view: SavedView) {
+  const place = view.unassigned ? 'Ohne Bereich' : view.areaName || 'Alle Bereiche'
+  return view.query ? `${place} · „${view.query}“` : place
 }
 
 function viewHref(projectId: string, kind: DiagramKind, view: SavedView) {
@@ -266,6 +328,11 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [diagramDelete, setDiagramDelete] = useState(false)
   const [listOpen, setListOpen] = useState(true)
+  const [inspectorWidth, setInspectorWidth] = useState(() => readPane('studio-pane-inspector', 320))
+  const [listHeight, setListHeight] = useState(() => readPane('studio-pane-list', 280))
+  const [toolsWidth, setToolsWidth] = useState(() => readPane('studio-pane-tools-dock', 240))
+  const [listQuery, setListQuery] = useState('')
+  const [listType, setListType] = useState('alle')
   const past = useRef<Array<{ nodes: FlowNode[]; edges: FlowEdge[] }>>([])
   const future = useRef<Array<{ nodes: FlowNode[]; edges: FlowEdge[] }>>([])
   const areas = useQuery({
@@ -421,8 +488,35 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
     return () => window.removeEventListener('keydown', onKey)
   })
 
+  const listTerm = listQuery.trim().toLowerCase()
+  const presentTypes = [...new Set(nodes.map((node) => node.data.nodeType))].sort((a, b) => listTypeRank(a) - listTypeRank(b))
+  const shownNodes = nodes.filter((node) => {
+    if (listType !== 'alle' && node.data.nodeType !== listType) return false
+    if (!listTerm) return true
+    return `${nodeTypeLabel(node.data.nodeType)} ${node.data.title}`.toLowerCase().includes(listTerm)
+  })
+  const shownEdges = edges.filter((edge) => {
+    if (listTerm && !edgeCaption(edge, nodes).toLowerCase().includes(listTerm)) return false
+    if (listType === 'alle') return true
+    const source = nodes.find((node) => node.id === edge.source)?.data.nodeType
+    const target = nodes.find((node) => node.id === edge.target)?.data.nodeType
+    return source === listType || target === listType
+  })
+  const listFiltered = listTerm.length > 0 || listType !== 'alle'
+
+  useEffect(() => {
+    if (!selectedId || !listOpen) return
+    const row = document.getElementById(`studio-row-${selectedId}`)
+    const list = row?.closest('ul')
+    if (!row || !(list instanceof HTMLElement)) return
+    const rowBox = row.getBoundingClientRect()
+    const listBox = list.getBoundingClientRect()
+    if (rowBox.top < listBox.top) list.scrollTop -= listBox.top - rowBox.top
+    else if (rowBox.bottom > listBox.bottom) list.scrollTop += rowBox.bottom - listBox.bottom
+  }, [selectedId, selectedKind, listOpen, listTerm, listType])
+
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] min-h-[32rem] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <LeaveGuard when={dirty || autosave.state === 'conflict' || autosave.state === 'error'} />
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-auto">
@@ -453,12 +547,14 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
       ) : null}
       {message ? <p role="alert" className="px-3 py-2 text-sm text-danger">{message}</p> : null}
       <div className="relative flex min-h-0 flex-1">
+        {toolsOpen ? (
+          <aside aria-label="Werkzeuge" className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-line bg-nav" style={{ width: toolsWidth }}>
+            <button className="absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize hover:bg-accent/50" type="button" aria-label="Breite der Werkzeuge ändern" onPointerDown={(event) => dragPane(event, 'x', 1, toolsWidth, 200, 420, setToolsWidth, 'studio-pane-tools-dock')} />
+            <Palette kind={initial.kind} canWrite={canWrite} components={components.data ?? []} onProcess={addProcessNode} onComponent={addPlacement} />
+          </aside>
+        ) : null}
         <div className="relative min-w-0 flex-1">
-          {toolsOpen ? (
-            <aside aria-label="Werkzeuge" className="absolute left-3 top-3 z-10 max-h-[calc(100%-5rem)] overflow-auto rounded-lg border border-line bg-card p-1 shadow-overlay">
-              <Palette kind={initial.kind} canWrite={canWrite} components={components.data ?? []} onProcess={addProcessNode} onComponent={addPlacement} />
-            </aside>
-          ) : (
+          {toolsOpen ? null : (
             <Button className="absolute left-3 top-3 z-10" size="sm" type="button" onClick={() => { setToolsOpen(true); rememberFlag('studio-panel-tools', true) }}>Werkzeuge</Button>
           )}
           {initial.kind === 'Process' && nodes.length === 0 && canWrite ? (
@@ -506,7 +602,8 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
           </ReactFlow>
         </div>
         {inspectorOpen ? (
-          <aside aria-label="Inspektor" className="absolute inset-y-0 right-0 z-20 w-[min(22rem,100%)] overflow-auto border-l border-line bg-card p-4 shadow-overlay lg:static lg:w-80 lg:shadow-none">
+          <aside aria-label="Inspektor" className="absolute inset-y-0 right-0 z-20 w-full overflow-auto border-l border-line bg-card p-4 shadow-overlay lg:relative lg:w-[var(--inspector)] lg:max-w-[46vw] lg:shrink-0 lg:shadow-none" style={{ ['--inspector' as string]: `${inspectorWidth}px` }}>
+            <button className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize hover:bg-accent/50 lg:block" type="button" aria-label="Breite des Inspektors ändern" onPointerDown={(event) => dragPane(event, 'x', -1, inspectorWidth, 240, 560, setInspectorWidth, 'studio-pane-inspector')} />
             <div className="mb-3 flex items-center justify-between lg:hidden">
               <h2 className="font-semibold">Inspektor</h2>
               <Button size="sm" type="button" onClick={() => { setInspectorOpen(false); rememberFlag('studio-panel-inspector', false) }}>Schließen</Button>
@@ -547,40 +644,83 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
           </aside>
         ) : null}
       </div>
-      <div className="border-t border-line">
-        <button className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-semibold" type="button" aria-expanded={listOpen} onClick={() => setListOpen((open) => !open)}>
-          Knoten und Kanten
+      <div className="flex shrink-0 flex-col border-t border-line bg-nav/40" style={listOpen ? { height: listHeight } : undefined}>
+        {listOpen ? <button className="h-1.5 shrink-0 cursor-row-resize hover:bg-accent/50" type="button" aria-label="Höhe der Knotenliste ändern" onPointerDown={(event) => dragPane(event, 'y', -1, listHeight, 160, 640, setListHeight, 'studio-pane-list')} /> : null}
+        <button className="flex w-full shrink-0 items-center justify-between px-3 py-2 text-left text-sm font-semibold" type="button" aria-expanded={listOpen} onClick={() => setListOpen((open) => !open)}>
+          <span>Knoten und Kanten</span>
+          <span className="text-xs font-normal text-muted">{nodes.length} Knoten · {edges.length} Kanten</span>
         </button>
-        {listOpen ? <ul className="grid max-h-48 gap-1 overflow-auto px-3 pb-3 md:grid-cols-2">
-          {nodes.map((node) => (
-            <li key={node.id} className="flex items-center justify-between gap-2 text-sm">
-              <button type="button" className="underline" onClick={() => { setSelectedId(node.id); setSelectedKind('node') }}>{nodeTypeLabel(node.data.nodeType)}: {node.data.title}</button>
-              {canWrite && selectedKind === 'node' && selectedId && selectedId !== node.id ? (
-                <Button size="sm" type="button" aria-label={`Mit ${node.data.title} verbinden`} onClick={() => {
-                  remember()
-                  setEdges((current) => addEdge({
-                    id: crypto.randomUUID(),
-                    source: selectedId,
-                    target: node.id,
-                    label: '',
-                    data: { kind: initial.kind === 'System' ? 'Dependency' : 'Sequence', condition: '', protocol: '' },
-                  }, current))
-                  setDirty(true)
-                }}>Verbinden</Button>
+        {listOpen ? (
+          <div className="grid min-h-0 flex-1 gap-3 overflow-auto px-3 pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input className="h-9 max-w-sm" aria-label="Knoten und Kanten suchen" placeholder="Suchen" value={listQuery} onChange={(event) => setListQuery(event.target.value)} />
+              {presentTypes.length > 1 ? (
+                <div className="flex flex-wrap gap-1" role="group" aria-label="Nach Knotentyp filtern">
+                  <Button size="sm" type="button" aria-pressed={listType === 'alle'} variant={listType === 'alle' ? 'primary' : 'secondary'} onClick={() => setListType('alle')}>Alle</Button>
+                  {presentTypes.map((type) => (
+                    <Button key={type} size="sm" type="button" aria-pressed={listType === type} variant={listType === type ? 'primary' : 'secondary'} onClick={() => setListType(type)}>{nodeTypeLabel(type)}</Button>
+                  ))}
+                </div>
               ) : null}
-              {canWrite ? <Button size="sm" type="button" onClick={() => void (async () => {
-                if (!initial.nodes.some((item) => item.id === node.id)) removeNode(node.id)
-                else setPendingDelete(node.id)
-              })()}>Löschen</Button> : null}
-            </li>
-          ))}
-          {edges.map((edge) => (
-            <li key={edge.id} className="flex items-center justify-between gap-2 text-sm">
-              <button type="button" className="underline" onClick={() => { setSelectedId(edge.id); setSelectedKind('edge') }}>Kante {edgeCaption(edge, nodes)}</button>
-              {canWrite ? <Button size="sm" type="button" onClick={() => { remember(); setEdges((current) => current.filter((item) => item.id !== edge.id)); setDirty(true) }}>Löschen</Button> : null}
-            </li>
-          ))}
-        </ul> : null}
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <section aria-label="Knoten">
+                <h3 className="mb-1 text-xs font-medium text-muted">Knoten{listFiltered ? ` · ${shownNodes.length} von ${nodes.length}` : ''}</h3>
+                {nodes.length === 0 ? <p className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-muted">Noch keine Knoten.</p> : shownNodes.length === 0 ? <p className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-muted">Keine Treffer.</p> : (
+                  <ul className="divide-y divide-line overflow-auto rounded-lg border border-line bg-card">
+                    {shownNodes.map((node) => {
+                      const active = selectedKind === 'node' && selectedId === node.id
+                      return (
+                        <li id={`studio-row-${node.id}`} key={node.id} className={`flex items-center gap-2 px-2 py-1.5 ${active ? 'bg-accent/10' : ''}`}>
+                          <button type="button" className="min-w-0 flex-1 truncate text-left text-sm" onClick={() => { setSelectedId(node.id); setSelectedKind('node') }}>
+                            <span className="text-xs text-muted">{nodeTypeLabel(node.data.nodeType)}:</span>
+                            {' '}
+                            <span className="font-medium">{node.data.title}</span>
+                          </button>
+                          {canWrite && selectedKind === 'node' && selectedId && selectedId !== node.id ? (
+                            <Button className="shrink-0" size="sm" type="button" aria-label={`Mit ${node.data.title} verbinden`} onClick={() => {
+                              remember()
+                              setEdges((current) => addEdge({
+                                id: crypto.randomUUID(),
+                                source: selectedId,
+                                target: node.id,
+                                label: '',
+                                data: { kind: initial.kind === 'System' ? 'Dependency' : 'Sequence', condition: '', protocol: '' },
+                              }, current))
+                              setDirty(true)
+                            }}>Verbinden</Button>
+                          ) : null}
+                          {canWrite ? <Button className="shrink-0" size="sm" type="button" variant="ghost" onClick={() => void (async () => {
+                            if (!initial.nodes.some((item) => item.id === node.id)) removeNode(node.id)
+                            else setPendingDelete(node.id)
+                          })()}>Löschen</Button> : null}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+              <section aria-label="Kanten">
+                <h3 className="mb-1 text-xs font-medium text-muted">Kanten{listFiltered ? ` · ${shownEdges.length} von ${edges.length}` : ''}</h3>
+                {edges.length === 0 ? <p className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-muted">Noch keine Kanten.</p> : shownEdges.length === 0 ? <p className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-muted">Keine Treffer.</p> : (
+                  <ul className="divide-y divide-line overflow-auto rounded-lg border border-line bg-card">
+                    {shownEdges.map((edge) => {
+                      const active = selectedKind === 'edge' && selectedId === edge.id
+                      return (
+                        <li id={`studio-row-${edge.id}`} key={edge.id} className={`flex items-center gap-2 px-2 py-1.5 ${active ? 'bg-accent/10' : ''}`}>
+                          <button type="button" className="min-w-0 flex-1 truncate text-left text-sm" onClick={() => { setSelectedId(edge.id); setSelectedKind('edge') }}>
+                            <span className="font-medium">Kante {edgeCaption(edge, nodes)}</span>
+                          </button>
+                          {canWrite ? <Button className="shrink-0" size="sm" type="button" variant="ghost" onClick={() => { remember(); setEdges((current) => current.filter((item) => item.id !== edge.id)); setDirty(true) }}>Löschen</Button> : null}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            </div>
+          </div>
+        ) : null}
       </div>
       <DeleteDiagramDialog
         projectId={projectId}
@@ -644,7 +784,7 @@ function Palette({ kind, canWrite, components, onProcess, onComponent }: { kind:
   if (!canWrite) return <p className="text-sm text-muted">Nur zur Ansicht.</p>
   if (kind === 'Process') {
     return (
-      <div className="grid gap-1">
+      <div className="grid gap-1 p-2">
         <h2 className="px-2 py-1 text-xs font-semibold text-muted">Werkzeuge</h2>
         {processTools.map(([type, Icon]) => (
           <Button key={type} size="sm" className="justify-start" type="button" onClick={() => onProcess(type)}>
@@ -656,12 +796,17 @@ function Palette({ kind, canWrite, components, onProcess, onComponent }: { kind:
     )
   }
   return (
-    <div className="grid gap-2">
-      <h2 className="text-sm font-semibold">Komponenten</h2>
-      {components.length === 0 ? <p className="text-sm text-muted">Lege zuerst eine Komponente an.</p> : null}
-      {components.map((component) => (
-        <Button key={component.id} size="sm" type="button" onClick={() => onComponent(component)}>{component.name}</Button>
-      ))}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <h2 className="shrink-0 px-3 py-2 text-sm font-semibold">Komponenten</h2>
+      {components.length === 0 ? <p className="px-3 text-sm text-muted">Lege zuerst eine Komponente an.</p> : (
+        <div className="studio-scroll min-h-0 flex-1 px-2 pb-3">
+          <div className="grid gap-1">
+            {components.map((component) => (
+              <Button key={component.id} size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal py-1.5 text-left" type="button" onClick={() => onComponent(component)}>{component.name}</Button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -745,10 +890,10 @@ function Inspector(props: {
               <Input value={edge.data?.protocol ?? ''} disabled={!props.canWrite} onChange={(event) => props.onEdge({ ...edge, data: { kind: edge.data?.kind ?? 'Dependency', condition: edge.data?.condition ?? '', protocol: event.target.value } })} />
             </Field>
             <Field label="Art">
-              <select className="h-10 rounded-md border border-line bg-card px-3 text-sm" value={edge.data?.kind ?? 'Dependency'} disabled={!props.canWrite} onChange={(event) => props.onEdge({ ...edge, data: { kind: event.target.value as EdgeKind, condition: edge.data?.condition ?? '', protocol: edge.data?.protocol ?? '' } })}>
+              <Select value={edge.data?.kind ?? 'Dependency'} disabled={!props.canWrite} onChange={(event) => props.onEdge({ ...edge, data: { kind: event.target.value as EdgeKind, condition: edge.data?.condition ?? '', protocol: edge.data?.protocol ?? '' } })}>
                 <option value="Dependency">Abhängigkeit</option>
                 <option value="DataFlow">Datenfluss</option>
-              </select>
+              </Select>
             </Field>
           </>
         )}
@@ -778,6 +923,36 @@ function StudioNode({ data, selected }: NodeProps<FlowNode>) {
       <Handle type="source" position={Position.Right} />
     </div>
   )
+}
+
+function readPane(key: string, fallback: number) {
+  const value = Number(localStorage.getItem(key))
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function dragPane(event: ReactPointerEvent, axis: 'x' | 'y', direction: 1 | -1, current: number, min: number, max: number, set: (value: number) => void, key: string) {
+  event.preventDefault()
+  event.stopPropagation()
+  const start = axis === 'x' ? event.clientX : event.clientY
+  let latest = current
+  function move(next: PointerEvent) {
+    const delta = (axis === 'x' ? next.clientX : next.clientY) - start
+    latest = Math.min(max, Math.max(min, current + delta * direction))
+    set(latest)
+  }
+  function up() {
+    localStorage.setItem(key, String(Math.round(latest)))
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+}
+
+function listTypeRank(type: string) {
+  const order = ['start', 'event', 'action', 'decision', 'end', 'placement']
+  const index = order.indexOf(type)
+  return index === -1 ? order.length : index
 }
 
 function edgeCaption(edge: FlowEdge, nodes: FlowNode[]) {
@@ -830,7 +1005,7 @@ export function ComponentsPage() {
     },
   })
   return (
-    <div className="grid w-full max-w-6xl gap-6 px-4 py-6 md:px-6">
+    <div className="grid w-full gap-6 px-4 py-6 md:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="grid gap-3">
           <h1 className="text-2xl font-semibold">Komponenten</h1>
@@ -841,12 +1016,14 @@ export function ComponentsPage() {
       {components.isLoading ? <Loading /> : null}
       {components.isError ? <ErrorState error={components.error} onRetry={() => void components.refetch()} /> : null}
       {components.data?.length === 0 ? <EmptyState title="Keine Komponenten" body="Komponenten lassen sich in mehreren Systemdiagrammen platzieren." /> : null}
-      <ul className="grid gap-2">
+      <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {components.data?.map((component) => (
           <li key={component.id}>
-            <Link className="block rounded-lg border border-line bg-card p-3" to={`/projekte/${project.id}/system/komponenten/${component.id}`}>
-              {component.name}
-              <span className="mt-1 block text-sm text-muted">{component.placementCount} Platzierungen</span>
+            <Link className="flex h-full flex-col gap-2 rounded-xl border border-line bg-card p-4 hover:bg-background" to={`/projekte/${project.id}/system/komponenten/${component.id}`}>
+              <span className="text-xs font-medium text-accent">{componentKindLabel(component.kind)}</span>
+              <span className="font-semibold">{component.name}</span>
+              {component.technology || component.description ? <span className="line-clamp-2 text-sm text-muted">{component.technology || component.description}</span> : null}
+              <span className="mt-auto text-xs text-muted">{component.placementCount} {component.placementCount === 1 ? 'Platzierung' : 'Platzierungen'}</span>
             </Link>
           </li>
         ))}
@@ -855,14 +1032,14 @@ export function ComponentsPage() {
         <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <Field label="Name"><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field>
           <Field label="Art">
-            <select className="h-10 rounded-md border border-line bg-card px-3" value={kind} onChange={(event) => setKind(event.target.value as Component['kind'])}>
+            <Select value={kind} onChange={(event) => setKind(event.target.value as Component['kind'])}>
               <option value="Client">Client</option>
               <option value="Api">API</option>
               <option value="Service">Service</option>
               <option value="Database">Datenbank</option>
               <option value="Queue">Queue</option>
               <option value="External">Externes System</option>
-            </select>
+            </Select>
           </Field>
           {create.isError ? <p className="text-sm text-danger">{errorText(create.error)}</p> : null}
           <Button type="submit" variant="primary">Anlegen</Button>
@@ -906,34 +1083,65 @@ export function ComponentDetailPage() {
   if (query.isLoading || !draft) return <Loading />
   if (query.isError) return <div className="p-6"><ErrorState error={query.error} onRetry={() => void query.refetch()} /></div>
   return (
-    <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_20rem] md:p-6">
-      <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-        <h1 className="text-2xl font-semibold">Komponente</h1>
-        <Field label="Name"><Input value={draft.name} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
-        <Field label="Beschreibung"><Textarea value={draft.description} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></Field>
-        <Field label="Technologie"><Input value={draft.technology ?? ''} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, technology: event.target.value })} /></Field>
+    <div className="grid w-full items-start gap-6 px-4 py-6 md:px-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <form className="grid content-start gap-4" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-3xl font-semibold tracking-tight">
+              <span className="mb-1 block text-sm font-normal text-muted">Komponente</span>
+              {draft.name}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Badge tone="accent">{componentKindLabel(draft.kind)}</Badge>
+              {draft.technology ? <span className="text-sm text-muted">{draft.technology}</span> : null}
+            </div>
+          </div>
+          {canWrite ? <Button type="submit" variant="primary">Speichern</Button> : null}
+        </header>
+        <section className="grid gap-4 rounded-xl border border-line bg-card p-4 md:p-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Name"><Input value={draft.name} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
+            <Field label="Art">
+              <Select aria-label="Art" value={draft.kind} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, kind: event.target.value as Component['kind'] })}>
+                <option value="Client">Client</option>
+                <option value="Api">API</option>
+                <option value="Service">Service</option>
+                <option value="Database">Datenbank</option>
+                <option value="Queue">Queue</option>
+                <option value="External">Externes System</option>
+              </Select>
+            </Field>
+          </div>
+          <Field label="Technologie"><Input value={draft.technology ?? ''} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, technology: event.target.value })} /></Field>
+          <Field label="Beschreibung"><Textarea value={draft.description} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></Field>
+        </section>
         <p className="text-sm text-muted">{draft.placementCount} Platzierungen. Eine Umbenennung gilt für alle Diagramme. Das Entfernen einer Platzierung löscht die Komponente nicht.</p>
-        <section className="grid gap-2">
+        <section className="grid gap-3 rounded-xl border border-line bg-card p-4 md:p-5">
           <h2 className="font-semibold">Auswirkung auf Abläufe</h2>
           {effects.isLoading ? <p className="text-sm text-muted">Wird geladen …</p> : null}
           {effects.data?.length === 0 ? <p className="text-sm text-muted">Kein Prozessschritt verwendet diese Komponente.</p> : null}
           <ul className="grid gap-2">
             {effects.data?.map((flow) => (
-              <li key={flow.nodeId} className="rounded-md border border-line p-2 text-sm">
-                <Link className="font-medium underline" to={`/projekte/${project.id}/diagramme/${flow.diagramId}?node=${flow.nodeId}`}>
-                  {(flow.areaName ? `${flow.areaName} · ` : '') + `${flow.diagramName}: ${flow.nodeTitle}`}
+              <li key={flow.nodeId}>
+                <Link className="block rounded-lg border border-line px-3 py-2 hover:bg-background" to={`/projekte/${project.id}/diagramme/${flow.diagramId}?node=${flow.nodeId}`}>
+                  <span className="block text-xs text-muted">{[flow.areaName, flow.diagramName].filter(Boolean).join(' · ')}</span>
+                  <span className="block font-medium">{flow.nodeTitle}</span>
+                  {flow.rationale ? <span className="mt-1 block text-sm text-muted">{flow.rationale}</span> : null}
                 </Link>
-                {flow.rationale ? <p className="text-muted">{flow.rationale}</p> : null}
               </li>
             ))}
           </ul>
         </section>
         {save.isError || remove.isError ? <p role="alert" className="text-sm text-danger">{errorText(save.error ?? remove.error)}</p> : null}
-        {canWrite ? <div className="flex gap-2"><Button type="submit" variant="primary">Speichern</Button><Button type="button" variant="danger" onClick={() => remove.mutate()}>Komponente löschen</Button></div> : null}
+        {canWrite ? <div><Button type="button" variant="danger" onClick={() => remove.mutate()}>Komponente löschen</Button></div> : null}
       </form>
-      <aside className="rounded-xl border border-line bg-card p-4">
-        <LinkPanel projectId={project.id} artifactId={componentId} mode="component" canWrite={canWrite} />
-        <UsagePanel projectId={project.id} artifactId={componentId} title={draft.name} />
+      <aside className="grid content-start gap-4">
+        <div className="rounded-xl border border-line bg-card p-4">
+          <LinkPanel projectId={project.id} artifactId={componentId} mode="component" canWrite={canWrite} />
+        </div>
+        <div className="rounded-xl border border-line bg-card p-4">
+          <UsagePanel projectId={project.id} artifactId={componentId} title={draft.name} />
+        </div>
       </aside>
     </div>
   )

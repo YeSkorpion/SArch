@@ -42,7 +42,7 @@ public static class DocumentRules
 
 public static class WireframeRules
 {
-    public static readonly string[] ElementTypes = ["text", "button", "input", "image", "card", "container"];
+    public static readonly string[] ElementTypes = ["heading", "text", "button", "link", "input", "textarea", "select", "search", "checkbox", "switch", "image", "avatar", "badge", "divider", "card", "container", "nav", "tabs", "table", "list"];
 
     public sealed record Element(
         string Id,
@@ -187,9 +187,9 @@ public static class WireframeRules
                 }
             }
 
-            if (target is not null && type != "button")
+            if (target is not null && type is not "button" and not "link")
             {
-                errors.Add("Nur Schaltflächen können eine Navigation erhalten.");
+                errors.Add("Nur Schaltflächen und Links können eine Navigation erhalten.");
             }
 
             result.Add(new Element(id, type, x, y, width, height, text, target));

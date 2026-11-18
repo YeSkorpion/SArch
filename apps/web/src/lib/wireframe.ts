@@ -1,5 +1,12 @@
-export const wireframeTypes = ['text', 'button', 'input', 'image', 'card', 'container'] as const
+export const wireframeTypes = ['heading', 'text', 'button', 'link', 'input', 'textarea', 'select', 'search', 'checkbox', 'switch', 'image', 'avatar', 'badge', 'divider', 'card', 'container', 'nav', 'tabs', 'table', 'list'] as const
 export type WireframeType = (typeof wireframeTypes)[number]
+
+export const wireframeGroups: { title: string; types: WireframeType[] }[] = [
+  { title: 'Inhalt', types: ['heading', 'text', 'image', 'badge', 'divider'] },
+  { title: 'Eingabe', types: ['input', 'textarea', 'select', 'search', 'checkbox', 'switch'] },
+  { title: 'Aktion', types: ['button', 'link'] },
+  { title: 'Aufbau', types: ['nav', 'tabs', 'card', 'container', 'table', 'list', 'avatar'] },
+]
 export type WireElement = {
   id: string
   type: WireframeType
@@ -38,7 +45,7 @@ function normalize(element: WireElement): WireElement {
     width: element.width,
     height: element.height,
     text: element.text ?? '',
-    targetScreenId: element.type === 'button' ? element.targetScreenId : null,
+    targetScreenId: element.type === 'button' || element.type === 'link' ? element.targetScreenId : null,
   }
 }
 
@@ -51,7 +58,7 @@ export function serializeWireframe(model: Wireframe) {
     width: element.width,
     height: element.height,
     text: element.text,
-    targetScreenId: element.type === 'button' ? element.targetScreenId : null,
+    targetScreenId: element.type === 'button' || element.type === 'link' ? element.targetScreenId : null,
   })
   return JSON.stringify({
     version: 1,
@@ -60,11 +67,55 @@ export function serializeWireframe(model: Wireframe) {
   })
 }
 
+const labels: Record<WireframeType, string> = {
+  heading: 'Überschrift',
+  text: 'Text',
+  button: 'Button',
+  link: 'Link',
+  input: 'Eingabefeld',
+  textarea: 'Textbereich',
+  select: 'Auswahl',
+  search: 'Suche',
+  checkbox: 'Kontrollkästchen',
+  switch: 'Schalter',
+  image: 'Bildplatzhalter',
+  avatar: 'Avatar',
+  badge: 'Status',
+  divider: 'Trennlinie',
+  card: 'Karte',
+  container: 'Container',
+  nav: 'Kopfzeile',
+  tabs: 'Reiter',
+  table: 'Tabelle',
+  list: 'Liste',
+}
+
 export function elementLabel(type: WireframeType) {
-  if (type === 'text') return 'Text'
-  if (type === 'button') return 'Button'
-  if (type === 'input') return 'Eingabefeld'
-  if (type === 'image') return 'Bildplatzhalter'
-  if (type === 'card') return 'Karte'
-  return 'Container'
+  return labels[type]
+}
+
+export function elementDefaults(type: WireframeType) {
+  const size: Record<WireframeType, { width: number; height: number; text: string }> = {
+    heading: { width: 320, height: 40, text: 'Überschrift' },
+    text: { width: 320, height: 56, text: 'Beschreibungstext' },
+    button: { width: 148, height: 40, text: 'Weiter' },
+    link: { width: 140, height: 28, text: 'Mehr erfahren' },
+    input: { width: 260, height: 40, text: 'Eingabe' },
+    textarea: { width: 320, height: 96, text: 'Mehrzeiliger Text' },
+    select: { width: 240, height: 40, text: 'Bitte wählen' },
+    search: { width: 260, height: 40, text: 'Suchen' },
+    checkbox: { width: 200, height: 28, text: 'Option aktiv' },
+    switch: { width: 180, height: 28, text: 'Aktiviert' },
+    image: { width: 220, height: 132, text: 'Bild' },
+    avatar: { width: 48, height: 48, text: 'AB' },
+    badge: { width: 88, height: 28, text: 'Neu' },
+    divider: { width: 360, height: 16, text: '' },
+    card: { width: 320, height: 168, text: 'Karte' },
+    container: { width: 420, height: 220, text: 'Bereich' },
+    nav: { width: 912, height: 56, text: 'Anwendung' },
+    tabs: { width: 360, height: 40, text: 'Übersicht|Details|Verlauf' },
+    table: { width: 520, height: 148, text: 'Name|Status|Datum' },
+    list: { width: 280, height: 112, text: 'Erster Punkt\nZweiter Punkt\nDritter Punkt' },
+  }
+  return size[type]
 }

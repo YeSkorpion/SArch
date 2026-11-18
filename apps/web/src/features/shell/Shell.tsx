@@ -13,15 +13,15 @@ import {
   Search,
   Settings,
 } from 'lucide-react'
-import { useDeferredValue, useRef, useState, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router'
 import { Brand } from '../../components/Brand'
-import { Button, Hint, Menu, MenuItem, Select } from '../../components/ui'
+import { Button, Hint, Input, Menu, MenuItem, Select } from '../../components/ui'
 import { ErrorState, Loading } from '../../components/states'
 import { api } from '../../lib/api'
 import { artifactHref, roleLabel, searchHitMeta, searchTypeLabel } from '../../lib/labels'
 import { readFlag, rememberFlag } from '../../lib/scroll'
-import type { Area, Diagram, Project, SavedView, SearchHit, User } from '../../lib/types'
+import type { Area, Diagram, Document, Project, SavedView, SearchHit, User } from '../../lib/types'
 import { CommandPalette } from './CommandPalette'
 
 const nav = [
@@ -57,6 +57,21 @@ export function Shell({ user }: { user: User }) {
     queryFn: () => api<Diagram>(`/api/v1/projects/${projectId}/diagrams/${diagramId}`),
     enabled: Boolean(projectId && diagramId),
   })
+  const areaId = location.pathname.match(/\/bereiche\/([^/]+)/)?.[1]
+  const areas = useQuery({
+    queryKey: ['areas', projectId],
+    queryFn: () => api<Area[]>(`/api/v1/projects/${projectId}/areas`),
+    enabled: Boolean(projectId && areaId),
+  })
+  const documentId = location.pathname.match(/\/dokumente\/([^/]+)/)?.[1]
+  const page = useQuery({
+    queryKey: ['document', projectId, documentId],
+    queryFn: () => api<Document>(`/api/v1/projects/${projectId}/documents/${documentId}`),
+    enabled: Boolean(projectId && documentId),
+  })
+  const href = `${location.pathname}${location.search}`
+  const label = tabLabel(location.pathname, project.data?.name ?? 'Projekt', diagram.data, areas.data?.find((item) => item.id === areaId)?.name, page.data?.title)
+  const tabs = useWorkspaceTabs(projectId ?? '', href, label)
 
   if (!projectId) return null
   if (project.isLoading) return <Loading />
@@ -65,10 +80,15 @@ export function Shell({ user }: { user: User }) {
   const current = project.data
   const canWrite = !current.isArchived && (current.role === 'Owner' || current.role === 'Editor')
   const canManage = !current.isArchived && current.role === 'Owner'
-  const crumbs = breadcrumb(location.pathname, current.name, diagram.data)
+  const crumbs = breadcrumb(location.pathname, current.name, diagram.data, areas.data?.find((item) => item.id === areaId)?.name)
 
   return (
-    <div className="h-dvh overflow-hidden lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div
+      className="h-dvh overflow-hidden lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]"
+      onClick={(event) => openFromLink(event, tabs.openNew)}
+      onAuxClick={(event) => openFromLink(event, tabs.openNew)}
+      onMouseDown={(event) => { if (event.button === 1) openFromLink(event, tabs.openNew) }}
+    >
       <a className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2" href="#inhalt">
         Zum Inhalt
       </a>
@@ -119,6 +139,7 @@ export function Shell({ user }: { user: User }) {
             <p className="px-2 py-1 text-xs text-muted">Rolle: {roleLabel(current.role)}</p>
           </Menu>
         </header>
+        <WorkspaceTabs tabs={tabs.tabs} activeId={tabs.activeId} onSelect={tabs.select} onClose={tabs.close} onNew={() => tabs.openNew(`/projekte/${current.id}`)} />
         {current.isArchived ? <p className="bg-warning/15 px-4 py-2 text-sm">Dieses Projekt ist archiviert und kann nur gelesen werden.</p> : null}
         {navOpen ? (
           <div className="fixed inset-0 z-40 lg:hidden">
@@ -135,7 +156,9 @@ export function Shell({ user }: { user: User }) {
           </div>
         ) : null}
         <main id="inhalt" className="min-h-0 min-w-0 flex-1 overflow-auto">
-          <Outlet context={{ project: current, canWrite, canManage, user } satisfies ProjectOutlet} />
+          <div key={location.pathname} className="studio-page h-full min-h-full">
+            <Outlet context={{ project: current, canWrite, canManage, user } satisfies ProjectOutlet} />
+          </div>
         </main>
       </div>
       <CommandPalette projectId={current.id} projectName={current.name} open={paletteOpen} onOpenChange={setPaletteOpen} returnFocus={paletteReturn} />
@@ -159,8 +182,13 @@ function ProjectSwitch({ projects, current, onChange, compact = false }: { proje
 }
 
 function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pathname: string; onNavigate?: () => void }) {
+  const location = useLocation()
+  const [viewQuery, setViewQuery] = useState('')
   const areas = useQuery({ queryKey: ['areas', projectId], queryFn: () => api<Area[]>(`/api/v1/projects/${projectId}/areas`) })
   const views = useQuery({ queryKey: ['views', projectId, 'nav'], queryFn: () => api<SavedView[]>(`/api/v1/projects/${projectId}/views`) })
+  const viewTerm = viewQuery.trim().toLowerCase()
+  const shown = (views.data ?? []).filter((view) => `${view.name} ${view.areaName ?? ''} ${view.query}`.toLowerCase().includes(viewTerm))
+  const scopes = [...new Set(shown.map((view) => view.scope))]
   const diagramId = pathname.match(/\/diagramme\/([^/]+)/)?.[1]
   const diagram = useQuery({
     queryKey: ['diagram', projectId, diagramId],
@@ -189,12 +217,31 @@ function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pa
           </Link>
         )) : <p className="px-2 py-1 text-xs text-muted">Noch keine Bereiche.</p>}
       </NavFold>
-      <NavFold id="views" label="Gespeicherte Ansichten">
-        {views.data?.length ? views.data.map((view) => (
-          <Link key={view.id} className="block rounded-md px-2 py-1.5 text-sm break-words hover:bg-background" to={viewHref(projectId, view)} onClick={onNavigate}>
-            {view.name}
-          </Link>
-        )) : <p className="px-2 py-1 text-xs text-muted">Noch keine Ansichten.</p>}
+      <NavFold id="views" label="Gespeicherte Ansichten" count={views.data?.length}>
+        {views.data?.length ? (
+          <div className="grid gap-1">
+            {views.data.length > 6 ? (
+              <Input className="h-8" aria-label="Ansichten suchen" placeholder="Ansichten suchen" value={viewQuery} onChange={(event) => setViewQuery(event.target.value)} />
+            ) : null}
+            {shown.length === 0 ? <p className="px-2 py-1 text-xs text-muted">Keine Treffer.</p> : (
+              <div className="grid max-h-52 gap-2 overflow-auto">
+                {scopes.map((scope) => (
+                  <div key={scope}>
+                    {scopes.length > 1 ? <p className="px-2 pb-0.5 text-xs text-muted">{scope === 'system' ? 'Systemarchitektur' : 'Prozesse'}</p> : null}
+                    <div className="grid gap-0.5">
+                      {shown.filter((view) => view.scope === scope).map((view) => (
+                        <Link key={view.id} className={`block rounded-md px-2 py-1.5 hover:bg-background ${viewHref(projectId, view) === `${location.pathname}${location.search}` ? 'bg-card text-accent' : ''}`} to={viewHref(projectId, view)} onClick={onNavigate}>
+                          <span className="block truncate text-sm">{view.name}</span>
+                          <span className="block truncate text-xs text-muted">{view.unassigned ? 'Ohne Bereich' : view.areaName || 'Alle Bereiche'}{view.query ? ` · „${view.query}“` : ''}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : <p className="px-2 py-1 text-xs text-muted">Noch keine Ansichten.</p>}
       </NavFold>
       <Link className="mt-4 px-2 text-sm text-muted underline-offset-2 hover:underline" to="/projekte" onClick={onNavigate}>
         Alle Projekte
@@ -203,7 +250,7 @@ function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pa
   )
 }
 
-function NavFold({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+function NavFold({ id, label, count, children }: { id: string; label: string; count?: number; children: ReactNode }) {
   const [open, setOpen] = useState(() => readFlag(`studio-nav-${id}`, false))
   return (
     <div className="mt-3">
@@ -217,8 +264,11 @@ function NavFold({ id, label, children }: { id: string; label: string; children:
           rememberFlag(`studio-nav-${id}`, next)
         }}
       >
-        {label}
-        <ChevronDown size={14} className={open ? 'rotate-180' : ''} aria-hidden="true" />
+        <span className="min-w-0 truncate">{label}</span>
+        <span className="ml-auto flex items-center gap-1">
+          {count ? <span className="tabular-nums">{count}</span> : null}
+          <ChevronDown size={14} className={open ? 'rotate-180' : ''} aria-hidden="true" />
+        </span>
       </button>
       {open ? <div className="mt-1 grid gap-0.5 pl-2">{children}</div> : null}
     </div>
@@ -303,7 +353,135 @@ function viewHref(projectId: string, view: SavedView) {
   return `/projekte/${projectId}/${base}${query ? `?${query}` : ''}`
 }
 
-function breadcrumb(pathname: string, projectName: string, diagram?: Diagram) {
+type WorkspaceTab = { id: string; href: string; label: string }
+
+function WorkspaceTabs({ tabs, activeId, onSelect, onClose, onNew }: { tabs: WorkspaceTab[]; activeId: string; onSelect: (tab: WorkspaceTab) => void; onClose: (id: string) => void; onNew: () => void }) {
+  return (
+    <div className="flex h-10 shrink-0 items-end gap-1 overflow-x-auto border-b border-line bg-nav px-2" role="tablist" aria-label="Offene Tabs">
+      {tabs.map((tab) => {
+        const active = tab.id === activeId
+        return (
+          <div key={tab.id} className={`flex max-w-56 shrink-0 items-center rounded-t-md border border-b-0 ${active ? 'border-line bg-background text-foreground' : 'border-transparent text-muted hover:bg-card'}`}>
+            <button className="min-w-0 truncate px-3 py-1.5 text-left text-sm" type="button" role="tab" aria-selected={active} onClick={() => onSelect(tab)}>{tab.label}</button>
+            <button className="mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-md text-xs hover:bg-background" type="button" aria-label={`Tab ausblenden: ${tab.label}`} onClick={() => onClose(tab.id)}>×</button>
+          </div>
+        )
+      })}
+      <button className="mb-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-card hover:text-foreground" type="button" aria-label="Weiteren Tab öffnen" onClick={onNew}>+</button>
+    </div>
+  )
+}
+
+function useWorkspaceTabs(projectId: string, href: string, label: string) {
+  const navigate = useNavigate()
+  const boot = useRef<WorkspaceTab[] | null>(null)
+  if (boot.current === null) boot.current = initialTabs(projectId, href, label)
+  const [tabs, setTabs] = useState(boot.current)
+  const [activeId, setActiveId] = useState((boot.current.find((tab) => tab.href === href) ?? boot.current[0]).id)
+  const seenProject = useRef(projectId)
+  if (projectId && seenProject.current !== projectId) {
+    seenProject.current = projectId
+    const initial = initialTabs(projectId, href, label)
+    setTabs(initial)
+    setActiveId((initial.find((tab) => tab.href === href) ?? initial[0]).id)
+  }
+
+  useEffect(() => {
+    if (!projectId) return
+    setTabs((current) => {
+      if (!current.some((tab) => tab.id === activeId)) return current
+      const currentTab = current.find((tab) => tab.id === activeId)
+      if (currentTab?.href === href && currentTab.label === label) return current
+      return current.map((tab) => tab.id === activeId ? { ...tab, href, label } : tab)
+    })
+  }, [projectId, href, label, activeId])
+
+  useEffect(() => {
+    if (!projectId || tabs.length === 0) return
+    sessionStorage.setItem(`studio-tabs-${projectId}`, JSON.stringify(tabs))
+  }, [projectId, tabs])
+
+  function select(tab: WorkspaceTab) {
+    setActiveId(tab.id)
+    void navigate(tab.href)
+  }
+
+  function openNew(nextHref: string) {
+    const existing = tabs.find((tab) => tab.href === nextHref)
+    if (existing) {
+      select(existing)
+      return
+    }
+    const created = { id: crypto.randomUUID(), href: nextHref, label: 'Neuer Tab' }
+    setActiveId(created.id)
+    setTabs((current) => [...current, created])
+    void navigate(nextHref)
+  }
+
+  function close(id: string) {
+    const remaining = tabs.filter((tab) => tab.id !== id)
+    if (remaining.length === 0) {
+      const fresh = { id: crypto.randomUUID(), href: `/projekte/${projectId}`, label: 'Übersicht' }
+      setActiveId(fresh.id)
+      setTabs([fresh])
+      void navigate(fresh.href)
+      return
+    }
+    if (activeId === id) {
+      const fallback = remaining[remaining.length - 1]
+      setActiveId(fallback.id)
+      void navigate(fallback.href)
+    }
+    setTabs(remaining)
+  }
+
+  return { tabs, activeId, select, openNew, close }
+}
+
+function initialTabs(projectId: string, href: string, label: string) {
+  const stored = readTabs(projectId)
+  if (stored.length > 0) return stored
+  return [{ id: crypto.randomUUID(), href: href || '/projekte', label: label || 'Übersicht' }]
+}
+
+function readTabs(projectId: string) {
+  if (!projectId) return []
+  try {
+    const raw = sessionStorage.getItem(`studio-tabs-${projectId}`)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as WorkspaceTab[]
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((tab) => typeof tab?.id === 'string' && typeof tab.href === 'string' && tab.href.startsWith('/projekte/')).map((tab) => ({
+      id: tab.id,
+      href: tab.href,
+      label: tab.label || 'Tab',
+    }))
+  } catch {
+    return []
+  }
+}
+
+function openFromLink(event: ReactMouseEvent, openNew: (href: string) => void) {
+  if (event.shiftKey || event.altKey) return
+  if (!(event.button === 1 || event.metaKey || event.ctrlKey)) return
+  const anchor = (event.target as HTMLElement).closest('a[href]')
+  if (!(anchor instanceof HTMLAnchorElement)) return
+  const url = new URL(anchor.href, window.location.href)
+  if (url.origin !== window.location.origin || !url.pathname.startsWith('/projekte/')) return
+  event.preventDefault()
+  openNew(`${url.pathname}${url.search}`)
+}
+
+function tabLabel(pathname: string, projectName: string, diagram?: Diagram, areaName?: string, pageTitle?: string) {
+  if (/\/dokumente\/[^/]+/.test(pathname) && pageTitle) return pageTitle
+  if (/\/diagramme\/[^/]+/.test(pathname) && diagram?.name) return diagram.name
+  const crumbs = breadcrumb(pathname, projectName, diagram, areaName)
+  const leaf = crumbs.at(-1)?.label
+  if (!leaf || leaf === projectName) return 'Übersicht'
+  return leaf
+}
+
+function breadcrumb(pathname: string, projectName: string, diagram?: Diagram, areaName?: string) {
   const parts = pathname.split('/').filter(Boolean)
   const crumbs = [{ href: `/projekte/${parts[1]}`, label: projectName }]
   const section = parts[2]
@@ -329,6 +507,9 @@ function breadcrumb(pathname: string, projectName: string, diagram?: Diagram) {
   }
   if (section === 'system' && parts[3] === 'komponenten') {
     crumbs.push({ href: `/projekte/${parts[1]}/system/komponenten`, label: 'Komponenten' })
+  }
+  if (section === 'bereiche' && parts[3]) {
+    crumbs.push({ href: pathname, label: areaName ?? 'Bereich' })
   }
   return crumbs
 }

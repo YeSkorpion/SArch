@@ -37,7 +37,13 @@ public static class TraceEndpoints
             (await missingScreen.OrderBy(item => item.Key).Take(8).ToListAsync(ct)).Select(RequirementEndpoints.Map).ToList(),
             await missingComponent.CountAsync(ct),
             (await missingComponent.OrderBy(item => item.Key).Take(8).ToListAsync(ct)).Select(RequirementEndpoints.Map).ToList(),
-            await SharedFlows.AcrossProcesses(db, projectId, ct)));
+            await SharedFlows.AcrossProcesses(db, projectId, ct),
+            await db.Requirements.CountAsync(item => item.ProjectId == projectId, ct),
+            await db.Diagrams.CountAsync(item => item.ProjectId == projectId && item.Kind == DiagramKind.Process, ct),
+            await db.Diagrams.CountAsync(item => item.ProjectId == projectId && item.Kind == DiagramKind.System, ct),
+            await db.Screens.CountAsync(item => item.ProjectId == projectId, ct),
+            await db.Documents.CountAsync(item => item.ProjectId == projectId, ct),
+            await db.Components.CountAsync(item => item.ProjectId == projectId, ct)));
     }
 
     private static async Task<IResult> Search(ProjectGuard guard, AppDbContext db, Guid projectId, string? q, HttpContext http, CancellationToken ct)
@@ -432,6 +438,24 @@ public static class TraceEndpoints
             .Select(item => new RecentItem(item.ArtifactId, "component", item.Name, "Komponente", item.UpdatedAt, null)).ToListAsync(ct));
         items.AddRange(await db.Documents.AsNoTracking().Where(item => item.ProjectId == projectId).OrderByDescending(item => item.UpdatedAt).Take(8)
             .Select(item => new RecentItem(item.ArtifactId, item.Kind == DocumentKind.Decision ? "decision" : "document", item.Title, item.Kind == DocumentKind.Decision ? "Entscheidung" : "Seite", item.UpdatedAt, null)).ToListAsync(ct));
-        return items.OrderByDescending(item => item.UpdatedAt).ThenBy(item => item.Id).Take(8).ToList();
+        var picked = new List<RecentItem>();
+        var perType = new Dictionary<string, int>();
+        foreach (var item in items.OrderByDescending(item => item.UpdatedAt).ThenBy(item => item.Id))
+        {
+            perType.TryGetValue(item.Type, out var count);
+            if (count >= 2)
+            {
+                continue;
+            }
+
+            perType[item.Type] = count + 1;
+            picked.Add(item);
+            if (picked.Count == 8)
+            {
+                break;
+            }
+        }
+
+        return picked;
     }
 }

@@ -149,6 +149,12 @@ export type Overview = {
   missingComponentCount: number
   missingComponent: Requirement[]
   sharedComponents: SharedComponent[]
+  requirementCount: number
+  processCount: number
+  systemCount: number
+  screenCount: number
+  documentCount: number
+  componentCount: number
 }
 export type AffectedFlow = {
   diagramId: string

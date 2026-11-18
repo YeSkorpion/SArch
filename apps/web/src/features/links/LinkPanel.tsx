@@ -67,19 +67,19 @@ export function LinkPanel({
       {links.isError ? <p className="text-sm text-danger">{errorText(links.error)}</p> : null}
       <ul className="grid gap-2">
         {(links.data ?? []).map((link) => (
-          <li key={link.id} className="rounded-md border border-line p-2 text-sm">
-            <div className="text-muted">{relationLabel(link.relation, link.direction)}</div>
-            <Link className="font-medium underline" to={artifactHref(projectId, link.artifactType, link.artifactId, link.diagramId)}>
+          <li key={link.id} className="rounded-lg border border-line bg-background px-3 py-2 text-sm">
+            <div className="text-xs text-muted">{relationLabel(link.relation, link.direction)}</div>
+            <Link className="font-medium underline-offset-2 hover:underline" to={artifactHref(projectId, link.artifactType, link.artifactId, link.diagramId)}>
               {link.title}
             </Link>
-            <div className="text-muted">{searchTypeLabel(link.artifactType)}</div>
-            {link.rationale ? <p className="mt-1">{link.rationale}</p> : null}
+            <div className="text-xs text-muted">{searchTypeLabel(link.artifactType)}</div>
+            {link.rationale ? <p className="mt-1 text-muted">{link.rationale}</p> : null}
             {canWrite && link.relation !== 'Documents' ? (
-              <Button className="mt-2" size="sm" type="button" onClick={() => remove.mutate(link.id)}>
+              <Button className="mt-2" size="sm" type="button" variant="ghost" onClick={() => remove.mutate(link.id)}>
                 Verknüpfung entfernen
               </Button>
             ) : null}
-            {link.relation === 'Documents' ? <p className="mt-1 text-muted">Dokumentlinks werden im Seitentext geändert.</p> : null}
+            {link.relation === 'Documents' ? <p className="mt-1 text-xs text-muted">Dokumentlinks werden im Seitentext geändert.</p> : null}
           </li>
         ))}
         {links.data?.length === 0 ? <li className="text-sm text-muted">Noch keine Verknüpfungen.</li> : null}

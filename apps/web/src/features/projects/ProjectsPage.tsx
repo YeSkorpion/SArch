@@ -30,7 +30,7 @@ export function ProjectsPage({ user }: { user: User }) {
   })
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-8 px-4 py-8">
+    <main className="grid w-full gap-8 px-4 py-8 md:px-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Brand to="/projekte" />

@@ -68,7 +68,7 @@ export function SettingsPage() {
   if (members.isError) return <div className="p-6"><ErrorState error={members.error} onRetry={() => void members.refetch()} /></div>
 
   return (
-    <div className="grid max-w-3xl gap-6 p-4 md:p-6">
+    <div className="grid w-full gap-6 p-4 md:p-6">
       <h1 className="text-2xl font-semibold">Einstellungen</h1>
       <form className="grid gap-3 rounded-xl border border-line bg-card p-4" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
         <Field label="Name"><Input value={name} disabled={!canManage} onChange={(event) => setName(event.target.value)} /></Field>

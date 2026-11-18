@@ -83,6 +83,54 @@ body {
   outline-offset: 2px;
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 50%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted) 42%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.studio-scroll {
+  overflow-x: clip;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.studio-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 0;
+}
+
+.studio-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted) 55%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
 button,
 a,
 input,
@@ -92,7 +140,22 @@ textarea {
     background-color var(--motion-fast) var(--ease),
     border-color var(--motion-fast) var(--ease),
     color var(--motion-fast) var(--ease),
-    opacity var(--motion-fast) var(--ease);
+    opacity var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease),
+    box-shadow var(--motion-fast) var(--ease);
+}
+
+button:not(:disabled):hover,
+a:hover {
+  transition-duration: var(--motion-fast);
+}
+
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.studio-page {
+  animation: studio-page var(--motion-panel) var(--ease);
 }
 
 .studio-overlay {
@@ -115,16 +178,29 @@ textarea {
   transition: width var(--motion-panel) var(--ease);
 }
 
-select.studio-inline,
-input.studio-inline {
+.studio-inline {
   width: auto;
   max-width: 100%;
   height: 2.25rem;
 }
 
+.studio-select:focus-within > button {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.studio-select select:focus-visible {
+  outline: none;
+}
+
 @keyframes studio-fade {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes studio-page {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes studio-pop {
@@ -182,10 +258,11 @@ input.studio-inline {
 }
 
 .studio-prose .ProseMirror {
-  max-width: 68ch;
   min-height: 18rem;
   overflow-x: auto;
   outline: none;
+  font-size: 1.0625rem;
+  line-height: 1.7;
 }
 
 .studio-prose .ProseMirror h1,
@@ -196,12 +273,12 @@ input.studio-inline {
 }
 
 .studio-prose .ProseMirror h2 {
-  margin: 1.4rem 0 0.4rem;
+  margin: 1.75rem 0 0.45rem;
   font-size: 1.35rem;
 }
 
 .studio-prose .ProseMirror p {
-  margin: 0.55rem 0;
+  margin: 0.8rem 0;
 }
 
 .studio-prose .ProseMirror ul,

@@ -256,7 +256,13 @@ public sealed record OverviewResponse(
     IReadOnlyList<RequirementResponse> MissingScreen,
     int MissingComponentCount,
     IReadOnlyList<RequirementResponse> MissingComponent,
-    IReadOnlyList<SharedComponentResponse> SharedComponents);
+    IReadOnlyList<SharedComponentResponse> SharedComponents,
+    int RequirementCount,
+    int ProcessCount,
+    int SystemCount,
+    int ScreenCount,
+    int DocumentCount,
+    int ComponentCount);
 
 public sealed record SharedComponentResponse(Guid ComponentId, string Name, IReadOnlyList<AffectedFlowResponse> Flows);
 

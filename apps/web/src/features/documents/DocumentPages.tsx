@@ -90,7 +90,7 @@ export function DocumentsPage() {
   const roots = (documents.data ?? []).filter((item) => !item.parentId)
   return (
     <DocFrame projectId={project.id} canWrite={canWrite} activeId={null} items={documents.data ?? []}>
-      <div className="mx-auto w-full max-w-[68ch] px-4 py-6 md:px-8">
+      <div className="w-full px-4 py-6 md:px-8">
         {roots.length === 0 ? (
           <EmptyState title="Noch keine Seiten" body="Lege eine Seite oder eine Architekturentscheidung an." />
         ) : (
@@ -191,6 +191,7 @@ function DocTree({ projectId, canWrite, items, activeId, onOpen }: { projectId: 
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between gap-2 px-3 pt-3">
         <h2 className="text-sm font-semibold">Seiten</h2>
+        <span className="mr-auto pl-1 text-xs text-muted">{items.length}</span>
         {canWrite ? (
           <Menu trigger={<Button size="sm" type="button" variant="primary">Neu</Button>}>
             <MenuItem onSelect={() => create.mutate('Page')}>Seite anlegen</MenuItem>
@@ -198,11 +199,16 @@ function DocTree({ projectId, canWrite, items, activeId, onOpen }: { projectId: 
           </Menu>
         ) : null}
       </div>
-      <div className="relative px-3 py-2">
-        <Search className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted" size={14} aria-hidden="true" />
-        <input className="h-8 w-full rounded-md border border-line bg-card pr-2 pl-8 text-sm" aria-label="Seitenbaum durchsuchen" placeholder="Seitentitel" value={query} onChange={(event) => setQuery(event.target.value)} />
+      <div className="grid gap-1 px-3 py-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted" size={14} aria-hidden="true" />
+          <input className="h-8 w-full rounded-md border border-line bg-card pr-2 pl-8 text-sm" aria-label="Seitenbaum durchsuchen" placeholder="Seitentitel" value={query} onChange={(event) => setQuery(event.target.value)} />
+        </div>
+        {!needle && visibleOpen.length > path.length + 1 ? (
+          <button className="justify-self-start text-xs text-muted underline-offset-2 hover:underline" type="button" onClick={() => { writeOpen(projectId, path); setOpenIds(path) }}>Auf den Pfad reduzieren</button>
+        ) : null}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-3">
+      <div className="studio-scroll min-h-0 flex-1 px-2 pb-3">
         {needle ? (
           hits.length === 0 ? <p className="px-2 py-2 text-sm text-muted">Keine Seite mit diesem Titel.</p> : (
             <ul className="grid gap-0.5">
@@ -227,20 +233,25 @@ function DocTree({ projectId, canWrite, items, activeId, onOpen }: { projectId: 
 function TreeNodes({ projectId, items, parentId, depth, openIds, activeId, onToggle, onOpen }: { projectId: string; items: DocumentListItem[]; parentId: string | null; depth: number; openIds: string[]; activeId: string | null; onToggle: (id: string) => void; onOpen: () => void }) {
   const children = items.filter((item) => item.parentId === parentId)
   if (children.length === 0) return null
+  const nestedCount = new Map<string, number>()
+  for (const item of items) {
+    if (!item.parentId) continue
+    nestedCount.set(item.parentId, (nestedCount.get(item.parentId) ?? 0) + 1)
+  }
   return (
-    <ul className="grid gap-0.5">
+    <ul className={`grid gap-0.5 ${depth > 0 ? 'ml-3 border-l border-line pl-1' : ''}`}>
       {children.map((item) => {
-        const nested = items.some((child) => child.parentId === item.id)
+        const nested = nestedCount.has(item.id)
         const open = openIds.includes(item.id)
         const active = item.id === activeId
         return (
-          <li key={item.id}>
-            <div className="flex min-w-0 items-center" style={{ paddingLeft: Math.min(depth, 8) * 12 }}>
+          <li key={item.id} className="min-w-0">
+            <div className="flex min-w-0 items-center">
               {nested ? (
-                <button className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-background" type="button" aria-expanded={open} aria-label={open ? `${item.title} zuklappen` : `${item.title} aufklappen`} onClick={() => onToggle(item.id)}>
+                <button className="grid h-7 w-6 shrink-0 place-items-center rounded-md hover:bg-background" type="button" aria-expanded={open} aria-label={open ? `${item.title} zuklappen` : `${item.title} aufklappen`} onClick={() => onToggle(item.id)}>
                   <ChevronRight size={14} className={open ? 'rotate-90 transition-transform duration-150' : 'transition-transform duration-150'} aria-hidden="true" />
                 </button>
-              ) : <span className="w-7 shrink-0" />}
+              ) : <span className="w-6 shrink-0" />}
               <Link
                 className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-sm ${active ? 'bg-accent/12 font-medium text-accent' : 'hover:bg-background'}`}
                 to={`/projekte/${projectId}/dokumente/${item.id}`}
@@ -250,8 +261,9 @@ function TreeNodes({ projectId, items, parentId, depth, openIds, activeId, onTog
                 onClick={onOpen}
               >
                 {item.kind === 'Decision' ? <Scale size={14} className="shrink-0" aria-hidden="true" /> : <FileText size={14} className="shrink-0" aria-hidden="true" />}
-                <span className="truncate">{item.title}</span>
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
               </Link>
+              {nested ? <span className="shrink-0 pr-1 text-xs text-muted">{nestedCount.get(item.id)}</span> : null}
             </div>
             {nested && open ? <TreeNodes projectId={projectId} items={items} parentId={item.id} depth={depth + 1} openIds={openIds} activeId={activeId} onToggle={onToggle} onOpen={onOpen} /> : null}
           </li>
@@ -444,21 +456,21 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
 
   const path = documentPath(documents.data ?? [], initial.id)
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5 md:px-8">
+    <div className="grid w-full gap-6 px-4 py-6 md:px-8">
       <LeaveGuard when={dirty || autosave.state === 'conflict'} />
       <section className="grid gap-3">
-        <p className="truncate font-mono text-xs text-muted" title={path}>{path}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input aria-label="Seitentitel" value={title} disabled={!canWrite} onChange={(event) => { setTitle(event.target.value); setDirty(true) }} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="truncate font-mono text-xs text-muted" title={path}>{path}</p>
           <SaveBadge state={autosave.state} />
         </div>
+        <Input className="h-auto border-transparent bg-transparent px-0 text-3xl font-semibold tracking-tight" aria-label="Seitentitel" value={title} disabled={!canWrite} onChange={(event) => { setTitle(event.target.value); setDirty(true) }} />
         {initial.kind === 'Decision' ? (
           <Field label="Status">
             <Select value={status} disabled={!canWrite} onChange={(event) => { setStatus(event.target.value as DocumentStatus); setDirty(true) }}>
               {(['Vorgeschlagen', 'Akzeptiert', 'Abgeloest'] as DocumentStatus[]).map((item) => <option key={item} value={item}>{documentStatusLabel(item)}</option>)}
             </Select>
           </Field>
-        ) : <p className="text-sm text-muted">Seite</p>}
+        ) : null}
         {autosave.state === 'conflict' ? (
           <div role="alert" className="rounded-md border border-warning p-3 text-sm">
             Der Entwurf wurde zwischenzeitlich gespeichert. Deine lokalen Änderungen bleiben erhalten.
@@ -475,15 +487,22 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
           <Button size="sm" type="button" aria-pressed={Boolean(editor?.isActive('codeBlock'))} variant={editor?.isActive('codeBlock') ? 'primary' : 'secondary'} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>Code</Button>
           <Button size="sm" type="button" onClick={() => setLinkOpen(true)}>Artefaktlink</Button>
         </div>
-        <div className="studio-prose min-h-80 rounded-lg border border-line bg-card p-6">
+        <div className="studio-prose min-h-80 rounded-xl border border-line bg-card px-6 py-5">
           <EditorContent editor={editor} />
         </div>
         {initial.embeds.some((embed) => embed.deleted) ? <p className="text-sm text-warning">Mindestens ein interner Link zeigt auf ein gelöschtes Artefakt.</p> : null}
-        <div className="flex flex-wrap gap-2">
-          <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
-            <option value="">Oberste Ebene</option>
-            {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-          </Select>
+      </section>
+      <section className="grid gap-3 rounded-xl border border-line bg-card p-4">
+        <h2 className="text-sm font-semibold">Struktur</h2>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <Field label="Übergeordnete Seite">
+              <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
+                <option value="">Oberste Ebene</option>
+                {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </Select>
+            </Field>
+          </div>
           <Button type="button" disabled={!canWrite} onClick={() => {
             if (createsCycle(initial.id, parentId || null, parents)) {
               setMessage('Die Seite kann nicht unter eine ihrer eigenen Unterseiten verschoben werden.')
@@ -495,17 +514,20 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
         </div>
         {message ? <p role="status" className="text-sm">{message}</p> : null}
       </section>
-      <section className="grid content-start gap-3 border-t border-line pt-4">
+      <section className="grid content-start gap-3">
         <h2 className="text-sm font-semibold">Revisionen</h2>
-        <ul className="flex flex-wrap gap-2">
-          {revisions.data?.map((item) => (
-            <li key={item.id}>
-              <button className="text-left text-sm underline" type="button" onClick={() => setRevision(item.number)}>
-                {item.number}. {item.title} · {item.authorName}
-              </button>
-            </li>
-          ))}
-        </ul>
+        {revisions.data && revisions.data.length === 0 ? <p className="text-sm text-muted">Noch keine gespeicherte Revision.</p> : null}
+        {revisions.data && revisions.data.length > 0 ? (
+          <ul className="overflow-hidden rounded-xl border border-line bg-card">
+            {revisions.data.map((item) => (
+              <li key={item.id} className="border-b border-line last:border-b-0">
+                <button className="w-full px-3 py-2 text-left text-sm hover:bg-background" type="button" onClick={() => setRevision(item.number)}>
+                  {item.number}. {item.title} · {item.authorName}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {opened.data ? (
           <div className="rounded-lg border border-line p-3 text-sm">
             <p className="font-medium">Revision {opened.data.number}</p>

@@ -5,7 +5,7 @@ import { ErrorState, Loading } from './components/states'
 import { LoginPage, RegisterPage } from './features/auth/AuthPages'
 import { ComponentDetailPage, ComponentsPage, DiagramEditorPage, DiagramListPage } from './features/diagram/DiagramPages'
 import { DocumentEditorPage, DocumentsPage } from './features/documents/DocumentPages'
-import { AreasPage } from './features/areas/AreasPage'
+import { AreaDetailPage, AreasPage } from './features/areas/AreasPage'
 import { OverviewPage } from './features/overview/OverviewPage'
 import { ProjectsPage } from './features/projects/ProjectsPage'
 import { RequirementDetailPage, RequirementsPage } from './features/requirements/RequirementsPages'
@@ -35,6 +35,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <OverviewPage /> },
           { path: 'bereiche', element: <AreasPage /> },
+          { path: 'bereiche/:areaId', element: <AreaDetailPage /> },
           { path: 'anforderungen', element: <RequirementsPage /> },
           { path: 'anforderungen/:requirementId', element: <RequirementDetailPage /> },
           { path: 'prozesse', element: <DiagramListPage kind="Process" /> },

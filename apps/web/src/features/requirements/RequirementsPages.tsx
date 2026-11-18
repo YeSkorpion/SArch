@@ -24,12 +24,16 @@ export function RequirementsPage() {
   const status = params.get('status') ?? ''
   const priority = params.get('priority') ?? ''
   const missing = params.get('missing') ?? ''
+  const q = params.get('q') ?? ''
+  const page = Math.max(1, Number(params.get('seite') ?? '1') || 1)
   const query = new URLSearchParams()
   if (status) query.set('status', status)
   if (priority) query.set('priority', priority)
   if (missing) query.set('missing', missing)
+  if (q) query.set('q', q)
+  if (page > 1) query.set('page', String(page))
   const list = useQuery({
-    queryKey: ['requirements', project.id, status, priority, missing],
+    queryKey: ['requirements', project.id, status, priority, missing, q, page],
     queryFn: () => api<Page<Requirement>>(`/api/v1/projects/${project.id}/requirements?${query.toString()}`),
   })
   const [open, setOpen] = useState(params.get('neu') === '1' && canWrite)
@@ -56,17 +60,23 @@ export function RequirementsPage() {
     missing === 'process' ? { key: 'missing', label: 'Ohne Prozessschritt' } : null,
     missing === 'screen' ? { key: 'missing', label: 'Ohne Screen' } : null,
     missing === 'component' ? { key: 'missing', label: 'Ohne Komponente' } : null,
+    q ? { key: 'q', label: `„${q}“` } : null,
   ].filter((item): item is { key: string; label: string } => item !== null)
   const hasItems = (list.data?.items.length ?? 0) > 0
+  const total = list.data?.totalCount ?? 0
+  const pageSize = list.data?.pageSize ?? 30
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const to = Math.min(page * pageSize, total)
   const createButton = canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Anforderung anlegen</Button> : undefined
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:px-8">
+    <div className="grid w-full gap-6 px-4 py-6 md:px-6">
       <PageHeader
         title="Anforderungen"
         description="Schlüssel, Titel, Status und Priorität bleiben in der Liste sichtbar."
         action={hasItems || filters.length > 0 ? createButton : undefined}
       />
       <div className="flex flex-wrap items-center gap-2">
+        <Input className="h-9 w-full sm:max-w-xs" aria-label="Anforderungen suchen" placeholder="Schlüssel oder Titel" value={q} onChange={(event) => setFilter(params, setParams, 'q', event.target.value)} />
         <Select className="studio-inline" aria-label="Status filtern" value={status} onChange={(event) => setFilter(params, setParams, 'status', event.target.value)}>
           <option value="">Status</option>
           {statuses.map((item) => <option key={item} value={item}>{requirementStatusLabel(item)}</option>)}
@@ -84,6 +94,7 @@ export function RequirementsPage() {
         {filters.length > 0 ? (
           <Button size="sm" type="button" onClick={() => setParams(new URLSearchParams())}>Filter zurücksetzen</Button>
         ) : null}
+        {list.data && total > 0 ? <span className="text-sm text-muted sm:ml-auto">{filters.length > 0 ? `${total} Treffer` : `${total} ${total === 1 ? 'Anforderung' : 'Anforderungen'}`}</span> : null}
       </div>
       {filters.length > 0 ? (
         <ul className="flex flex-wrap gap-2" aria-label="Aktive Filter">
@@ -104,20 +115,34 @@ export function RequirementsPage() {
       {list.data?.items.length === 0 && filters.length > 0 ? (
         <EmptyState title="Keine Treffer für diese Filter" body="Passe die Filter an oder setze sie zurück." action={<Button type="button" onClick={() => setParams(new URLSearchParams())}>Filter zurücksetzen</Button>} />
       ) : null}
-      <ul className="divide-y divide-line">
-        {list.data?.items.map((item) => (
-          <li key={item.id}>
-            <Link className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 hover:text-accent" to={`/projekte/${project.id}/anforderungen/${item.id}`}>
-              <span className="font-mono text-xs text-muted">{item.key}</span>
-              <span className="min-w-0 font-medium break-words">{' '}{item.title}</span>
-              <span className="flex flex-wrap gap-1">
-                <Badge tone={item.status === 'Erledigt' ? 'ok' : 'neutral'}>{requirementStatusLabel(item.status)}</Badge>
-                <Badge tone={item.priority === 'Kritisch' ? 'warning' : 'neutral'}>{priorityLabel(item.priority)}</Badge>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {hasItems ? (
+        <ul className="overflow-hidden rounded-xl border border-line bg-card">
+          {list.data?.items.map((item) => (
+            <li key={item.id} className="border-b border-line last:border-b-0">
+              <Link className="grid gap-1 px-3 py-2.5 hover:bg-background sm:grid-cols-[4.5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-x-4" to={`/projekte/${project.id}/anforderungen/${item.id}`}>
+                <span className="font-mono text-xs text-muted">{item.key}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{item.title}</span>
+                  {item.description ? <span className="block truncate text-sm font-normal text-muted">{item.description}</span> : null}
+                </span>
+                <span className="flex flex-wrap gap-1 sm:justify-end">
+                  <Badge tone={item.status === 'Erledigt' ? 'ok' : item.status === 'InBearbeitung' ? 'accent' : 'neutral'}>{requirementStatusLabel(item.status)}</Badge>
+                  <Badge tone={item.priority === 'Kritisch' ? 'danger' : item.priority === 'Hoch' ? 'warning' : 'neutral'}>{priorityLabel(item.priority)}</Badge>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {list.data && total > pageSize ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="text-muted">{from}–{to} von {total}</span>
+          <div className="flex gap-2">
+            <Button size="sm" type="button" disabled={page <= 1} onClick={() => setPage(params, setParams, page - 1)}>Vorherige Seite</Button>
+            <Button size="sm" type="button" disabled={page * pageSize >= total} onClick={() => setPage(params, setParams, page + 1)}>Nächste Seite</Button>
+          </div>
+        </div>
+      ) : null}
       <Modal open={open} onOpenChange={setOpen} title="Neue Anforderung">
         <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <Field label="Titel"><Input required value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
@@ -133,6 +158,14 @@ function setFilter(params: URLSearchParams, setParams: (next: URLSearchParams) =
   const next = new URLSearchParams(params)
   if (value) next.set(key, value)
   else next.delete(key)
+  next.delete('seite')
+  setParams(next)
+}
+
+function setPage(params: URLSearchParams, setParams: (next: URLSearchParams) => void, page: number) {
+  const next = new URLSearchParams(params)
+  if (page <= 1) next.delete('seite')
+  else next.set('seite', String(page))
   setParams(next)
 }
 

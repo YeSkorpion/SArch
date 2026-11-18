@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { Select } from '../../components/ui'
 import { api } from '../../lib/api'
 import { artifactHref, searchTypeLabel } from '../../lib/labels'
 import type { Area, ArtifactReviewComment, Usage, UsageHit } from '../../lib/types'
@@ -15,14 +16,14 @@ export function UsagePanel({ projectId, artifactId, title, heading = true }: { p
     <section className="grid gap-3 border-t border-line pt-3">
       {heading ? <h2 className="text-sm font-semibold">Auswirkungen</h2> : null}
       <div className="flex flex-wrap gap-2">
-        <select className="studio-inline" aria-label="Auswirkungen nach Typ filtern" value={type} onChange={(event) => setType(event.target.value)}>
+        <Select className="studio-inline" aria-label="Auswirkungen nach Typ filtern" value={type} onChange={(event) => setType(event.target.value)}>
           {types.map((item) => <option key={item || 'all'} value={item}>{item ? searchTypeLabel(item) : 'Alle Typen'}</option>)}
-        </select>
-        <select className="studio-inline" aria-label="Auswirkungen nach Bereich filtern" value={area} onChange={(event) => setArea(event.target.value)}>
+        </Select>
+        <Select className="studio-inline" aria-label="Auswirkungen nach Bereich filtern" value={area} onChange={(event) => setArea(event.target.value)}>
           <option value="">Alle Bereiche</option>
           <option value="none">Ohne Bereich</option>
           {areas.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
+        </Select>
       </div>
       <UsageLevel projectId={projectId} artifactId={artifactId} via={[]} type={type} area={area} parentTitle={title} />
       <ReviewComments projectId={projectId} artifactId={artifactId} />

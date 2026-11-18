@@ -39,7 +39,7 @@ export function ChangesPage() {
   if (packages.isLoading) return <Loading />
   if (packages.isError) return <div className="p-6"><ErrorState error={packages.error} onRetry={() => void packages.refetch()} /></div>
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 p-4 md:p-6">
+    <div className="grid w-full gap-6 px-4 py-6 md:px-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Änderungen</h1>
@@ -53,12 +53,13 @@ export function ChangesPage() {
         <ul className="grid gap-2">
           {packages.data?.map((item) => (
             <li key={item.id}>
-              <Link className="grid gap-1 rounded-lg border border-line bg-card px-3 py-2 hover:border-accent" to={`/projekte/${project.id}/aenderungen/${item.id}`}>
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{item.title}</span>
+              <Link className="grid gap-1 rounded-xl border border-line bg-card px-4 py-3 hover:bg-background" to={`/projekte/${project.id}/aenderungen/${item.id}`}>
+                <span className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 truncate font-medium">{item.title}</span>
                   <Badge tone={item.status === 'Freigegeben' ? 'ok' : item.reviewStale ? 'warning' : 'neutral'}>{item.reviewStale ? 'Überholt' : statusLabel(item.status)}</Badge>
                 </span>
-                <span className="text-sm text-muted">{item.ownerName}{item.reviewerName ? ` · Prüfung ${item.reviewerName}` : ''}{item.areaName ? ` · ${item.areaName}` : ''}</span>
+                {item.goal ? <span className="line-clamp-2 text-sm text-muted">{item.goal}</span> : null}
+                <span className="truncate text-xs text-muted">{item.ownerName}{item.reviewerName ? ` · Prüfung ${item.reviewerName}` : ' · Prüfung offen'}{item.areaName ? ` · ${item.areaName}` : ''}</span>
               </Link>
             </li>
           ))}
@@ -106,6 +107,10 @@ export function PackageDetailPage() {
   const [reason, setReason] = useState('')
   const [params, setParams] = useSearchParams()
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ title: '', goal: '', areaId: '', ownerId: '', reviewerId: '' })
+  const members = useQuery({ queryKey: ['members', project.id], queryFn: () => api<Member[]>(`/api/v1/projects/${project.id}/members`) })
+  const areas = useQuery({ queryKey: ['areas', project.id], queryFn: () => api<Area[]>(`/api/v1/projects/${project.id}/areas`) })
   const impactId = params.get('auswirkung') ?? ''
   const impactOpener = useRef<HTMLButtonElement | null>(null)
   function showImpact(id: string) {
@@ -143,6 +148,19 @@ export function PackageDetailPage() {
     onSuccess: (next) => { refresh(next); setReason('') },
     onError: fail,
   })
+  const saveMeta = useMutation({
+    mutationFn: () => api<PackageDetail>(`/api/v1/projects/${project.id}/packages/${packageId}`, {
+      method: 'PATCH',
+      body: { version: detail.data!.version, title: draft.title, goal: draft.goal, areaId: draft.areaId || null, ownerId: draft.ownerId, reviewerId: draft.reviewerId || null },
+    }),
+    onSuccess: (next) => { refresh(next); setEditing(false) },
+    onError: fail,
+  })
+  const removeItem = useMutation({
+    mutationFn: (itemId: string) => api<PackageDetail>(`/api/v1/projects/${project.id}/packages/${packageId}/items/${itemId}?version=${detail.data!.version}`, { method: 'DELETE' }),
+    onSuccess: refresh,
+    onError: fail,
+  })
   const handover = useMutation({
     mutationFn: () => api<{ markdown: string }>(`/api/v1/projects/${project.id}/packages/${packageId}/handover`),
     onSuccess: async (result) => {
@@ -171,7 +189,7 @@ export function PackageDetailPage() {
         ? <Button type="button" variant="primary" onClick={() => act.mutate('approve')}>Freigeben</Button>
         : null
   return (
-    <div className="grid max-w-6xl gap-6 px-4 py-6 md:px-6">
+    <div className="grid w-full gap-6 px-4 py-6 md:px-6">
       <header className="grid gap-3">
         <Link className="text-sm text-muted underline-offset-2 hover:underline" to={`/projekte/${project.id}/aenderungen`}>Zur Änderungsliste</Link>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -181,12 +199,61 @@ export function PackageDetailPage() {
           </div>
           {primary}
         </div>
-        <div className="grid gap-1 rounded-xl bg-card p-4 text-sm sm:grid-cols-2">
-          <p><span className="text-muted">Ziel. </span>{item.goal}</p>
-          <p><span className="text-muted">Verantwortlich. </span>{item.ownerName}</p>
-          <p><span className="text-muted">Prüfung. </span>{item.reviewerName ?? 'nicht zugewiesen'}</p>
-          <p><span className="text-muted">Bereich. </span>{item.areaName ?? 'keiner'}</p>
-        </div>
+        {editing ? (
+          <form className="grid gap-3 rounded-xl border border-line bg-card p-4" onSubmit={(event) => { event.preventDefault(); saveMeta.mutate() }}>
+            <Field label="Titel"><Input required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field>
+            <Field label="Ziel"><Textarea required value={draft.goal} onChange={(event) => setDraft({ ...draft, goal: event.target.value })} /></Field>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Fachbereich">
+                <Select aria-label="Fachbereich" value={draft.areaId} onChange={(event) => setDraft({ ...draft, areaId: event.target.value })}>
+                  <option value="">Keiner</option>
+                  {areas.data?.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Verantwortlich">
+                <Select aria-label="Verantwortlich" value={draft.ownerId} onChange={(event) => setDraft({ ...draft, ownerId: event.target.value })}>
+                  {members.data?.map((member) => <option key={member.userId} value={member.userId}>{member.displayName}</option>)}
+                </Select>
+              </Field>
+              <Field label="Prüfer">
+                <Select aria-label="Prüfer" value={draft.reviewerId} onChange={(event) => setDraft({ ...draft, reviewerId: event.target.value })}>
+                  <option value="">Noch niemand</option>
+                  {members.data?.map((member) => <option key={member.userId} value={member.userId}>{member.displayName}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" variant="primary" disabled={saveMeta.isPending}>Angaben speichern</Button>
+              <Button type="button" onClick={() => setEditing(false)}>Abbrechen</Button>
+            </div>
+          </form>
+        ) : (
+          <div className="grid gap-3 rounded-xl border border-line bg-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <dl className="grid flex-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <dt className="text-xs text-muted">Verantwortlich</dt>
+                  <dd className="truncate text-sm">{item.ownerName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Prüfung</dt>
+                  <dd className="truncate text-sm">{item.reviewerName ?? 'nicht zugewiesen'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Bereich</dt>
+                  <dd className="truncate text-sm">{item.areaName ?? 'keiner'}</dd>
+                </div>
+              </dl>
+              {canWrite && item.status === 'Entwurf' ? (
+                <Button size="sm" type="button" onClick={() => { setDraft({ title: item.title, goal: item.goal, areaId: item.areaId ?? '', ownerId: item.ownerId, reviewerId: item.reviewerId ?? '' }); setEditing(true) }}>Angaben bearbeiten</Button>
+              ) : null}
+            </div>
+            <div>
+              <p className="text-xs text-muted">Ziel</p>
+              <p className="text-sm">{item.goal}</p>
+            </div>
+          </div>
+        )}
       </header>
       {message ? <p role="status" className="text-sm">{message}</p> : null}
       <section className="grid gap-3">
@@ -195,35 +262,45 @@ export function PackageDetailPage() {
           {canWrite && item.status !== 'Freigegeben' ? <Button size="sm" type="button" aria-expanded={adding} onClick={() => setAdding((value) => !value)}>Artefakt hinzufügen</Button> : null}
         </div>
         {adding ? (
-          <div className="grid gap-2 rounded-lg border border-line bg-card p-3">
-            <Input aria-label="Notiz zum Artefakt" value={note} onChange={(event) => setNote(event.target.value)} />
-            <Input aria-label="Artefakt suchen" placeholder="Artefakt suchen" value={term} onChange={(event) => setTerm(event.target.value)} />
-            <ul>
+          <div className="grid gap-3 rounded-xl border border-line bg-card p-4">
+            <Field label="Artefakt suchen">
+              <Input aria-label="Artefakt suchen" placeholder="Name oder Schlüssel" value={term} onChange={(event) => setTerm(event.target.value)} />
+            </Field>
+            <Field label="Notiz" hint="Kurz, was an diesem Artefakt zu tun ist.">
+              <Input aria-label="Notiz zum Artefakt" value={note} onChange={(event) => setNote(event.target.value)} />
+            </Field>
+            {term.trim().length > 1 && search.data?.length === 0 ? <p className="text-sm text-muted">Kein passendes Artefakt.</p> : null}
+            <ul className="grid gap-1">
               {search.data?.map((hit) => (
                 <li key={hit.id}>
-                  <button className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-background" type="button" onClick={() => add.mutate(hit)}>
-                    {searchTypeLabel(hit.type)}: {hit.title}
+                  <button className="w-full rounded-md px-2 py-1.5 text-left hover:bg-background" type="button" onClick={() => add.mutate(hit)}>
+                    <span className="block text-xs text-muted">{searchTypeLabel(hit.type)}</span>
+                    <span className="block truncate text-sm">{hit.title}</span>
                   </button>
                 </li>
               ))}
             </ul>
           </div>
         ) : null}
-        {item.items.length === 0 ? <p className="text-sm text-muted">Noch keine Artefakte im Paket.</p> : null}
-        <ul className="divide-y divide-line">
-          {item.items.map((entry) => (
-            <li key={entry.id} className="flex items-center gap-3 py-2">
-              <span className="w-28 shrink-0 text-xs text-muted">{searchTypeLabel(entry.artifactType)}</span>
-              <div className="min-w-0 flex-1">
-                {entry.missing ? <span className="block truncate font-medium">{entry.artifactTitle}</span> : <Link className="block truncate font-medium underline-offset-2 hover:underline" to={artifactHref(project.id, entry.artifactType, entry.artifactId, entry.diagramId)}>{entry.artifactTitle}</Link>}
-                <span className="block truncate text-sm text-muted">{entry.missing ? 'nicht mehr im Projekt' : entry.note}</span>
-              </div>
-              {entry.missing ? null : (
-                <Button size="sm" type="button" onClick={(event) => { impactOpener.current = event.currentTarget; showImpact(entry.artifactId) }}>Auswirkungen ansehen</Button>
-              )}
-            </li>
-          ))}
-        </ul>
+        {item.items.length === 0 ? <p className="text-sm text-muted">Noch keine Artefakte im Paket.</p> : (
+          <ul className="overflow-hidden rounded-xl border border-line bg-card">
+            {item.items.map((entry) => (
+              <li key={entry.id} className="grid gap-2 border-b border-line px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <span className="text-xs text-muted">{searchTypeLabel(entry.artifactType)}</span>
+                  {entry.missing ? <span className="block truncate font-medium">{entry.artifactTitle}</span> : <Link className="block truncate font-medium hover:text-accent" to={artifactHref(project.id, entry.artifactType, entry.artifactId, entry.diagramId)}>{entry.artifactTitle}</Link>}
+                  <span className="block truncate text-sm text-muted">{entry.missing ? 'nicht mehr im Projekt' : entry.note}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {entry.missing ? null : (
+                    <Button size="sm" type="button" onClick={(event) => { impactOpener.current = event.currentTarget; showImpact(entry.artifactId) }}>Auswirkungen ansehen</Button>
+                  )}
+                  {canWrite && item.status === 'Entwurf' ? <Button size="sm" type="button" variant="ghost" onClick={() => removeItem.mutate(entry.id)}>Entfernen</Button> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
       <Dialog.Root open={Boolean(impact)} onOpenChange={(open) => { if (!open) showImpact('') }}>
         <Dialog.Portal>
@@ -253,12 +330,16 @@ export function PackageDetailPage() {
           ))}
         </ul>
         {canWrite ? (
-          <form className="grid gap-2" onSubmit={(event) => { event.preventDefault(); commentSave.mutate() }}>
-            <Select aria-label="Kommentarziel" value={target} onChange={(event) => setTarget(event.target.value)}>
-              <option value="">Paket</option>
-              {item.items.map((entry) => <option key={entry.id} value={entry.artifactId}>{entry.artifactTitle}</option>)}
-            </Select>
-            <Textarea aria-label="Kommentar" value={comment} onChange={(event) => setComment(event.target.value)} />
+          <form className="grid gap-3 rounded-xl border border-line bg-card p-4" onSubmit={(event) => { event.preventDefault(); commentSave.mutate() }}>
+            <Field label="Bezieht sich auf">
+              <Select aria-label="Kommentarziel" value={target} onChange={(event) => setTarget(event.target.value)}>
+                <option value="">Paket</option>
+                {item.items.map((entry) => <option key={entry.id} value={entry.artifactId}>{entry.artifactTitle}</option>)}
+              </Select>
+            </Field>
+            <Field label="Kommentar">
+              <Textarea aria-label="Kommentar" placeholder="Was soll geprüft oder geändert werden?" value={comment} onChange={(event) => setComment(event.target.value)} />
+            </Field>
             <Button type="submit">Kommentar speichern</Button>
           </form>
         ) : null}
@@ -301,24 +382,32 @@ function ProjectSnapshots({ projectId, canWrite }: { projectId: string; canWrite
   })
   const projectSnapshots = snapshots.data?.filter((item) => item.scope === 'project') ?? []
   return (
-    <section className="grid gap-3">
-      <h2 className="text-lg font-semibold">Projektstände</h2>
+    <section className="grid gap-3 rounded-xl border border-line bg-card p-4">
+      <div>
+        <h2 className="text-lg font-semibold">Projektstände</h2>
+        <p className="mt-1 text-sm text-muted">Ein Stand hält das Projekt unter einem Namen fest und lässt sich später vergleichen.</p>
+      </div>
       {canWrite ? (
-        <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
-          <Input aria-label="Name des Stands" value={name} onChange={(event) => setName(event.target.value)} placeholder="Name des Stands" />
-          <Button type="submit" disabled={create.isPending}>Stand speichern</Button>
+        <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
+          <div className="min-w-0 flex-1 sm:max-w-sm">
+            <Field label="Name des Stands">
+              <Input aria-label="Name des Stands" value={name} onChange={(event) => setName(event.target.value)} placeholder="Zum Beispiel Übergabe März" />
+            </Field>
+          </div>
+          <Button type="submit" disabled={create.isPending || name.trim().length === 0}>Stand speichern</Button>
         </form>
       ) : null}
       {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
-      {projectSnapshots.length === 0 ? <p className="text-sm text-muted">Noch kein benannter Projektstand.</p> : null}
-      <ul className="grid gap-1">
-        {snapshots.data?.map((item) => (
-          <li key={item.id}>
-            <Link className="text-sm underline-offset-2 hover:underline" to={`/projekte/${projectId}/staende/${item.id}`}>{item.name}</Link>
-            <span className="text-sm text-muted"> · {item.scope === 'package' ? 'Prüfstand' : 'Projekt'} · {item.createdByName}</span>
-          </li>
-        ))}
-      </ul>
+      {snapshots.data?.length === 0 ? <p className="text-sm text-muted">Noch kein benannter Projektstand.</p> : (
+        <ul className="divide-y divide-line">
+          {snapshots.data?.map((item) => (
+            <li key={item.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+              <Link className="min-w-0 truncate font-medium hover:text-accent" to={`/projekte/${projectId}/staende/${item.id}`}>{item.name}</Link>
+              <span className="text-xs text-muted">{item.scope === 'package' ? 'Prüfstand' : 'Projekt'} · {item.createdByName} · {new Date(item.createdAt).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {projectSnapshots.length > 1 ? (
         <div className="flex flex-wrap gap-2">
           <Select aria-label="Linker Stand" value={left} onChange={(event) => setLeft(event.target.value)}>
@@ -367,7 +456,7 @@ export function SnapshotPage() {
   if (detail.isError || !detail.data) return <div className="p-6"><ErrorState error={detail.error} onRetry={() => void detail.refetch()} /></div>
   const live = new Set(detail.data.liveIds)
   return (
-    <div className="mx-auto grid max-w-6xl gap-4 p-4 md:p-6">
+    <div className="grid w-full gap-4 p-4 md:p-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">{detail.data.name}</h1>
         <p className="mt-1 text-sm text-muted">{detail.data.createdByName} · {detail.data.scope === 'package' ? 'Prüfstand' : 'Projektstand'}</p>
