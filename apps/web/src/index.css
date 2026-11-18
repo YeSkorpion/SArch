@@ -184,6 +184,7 @@ input.studio-inline {
 .studio-prose .ProseMirror {
   max-width: 68ch;
   min-height: 18rem;
+  overflow-x: auto;
   outline: none;
 }
 
@@ -218,7 +219,9 @@ input.studio-inline {
 }
 
 .studio-prose .ProseMirror table {
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   margin: 0.75rem 0;
 }

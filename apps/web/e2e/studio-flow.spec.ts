@@ -186,12 +186,14 @@ test('durchgängige Planung auf dem Desktop', async ({ page }, info) => {
   await expect(page.getByRole('button', { name: /Kante Entscheidung → Ende/ })).toHaveCount(0)
 
   await openSection(page, 'Dokumentation')
-  await page.getByRole('button', { name: 'Seite anlegen' }).click()
+  await page.getByRole('button', { name: 'Neu', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Seite anlegen' }).click()
   await change(page, '/documents/', 'PUT', async () => {
     await page.getByLabel('Seitentitel').fill('Handbuch')
   })
   await openSection(page, 'Dokumentation')
-  await page.getByRole('button', { name: 'Seite anlegen' }).click()
+  await page.getByRole('button', { name: 'Neu', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Seite anlegen' }).click()
   await change(page, '/documents/', 'PUT', async () => {
     await page.getByLabel('Seitentitel').fill('Kapitel')
   })
@@ -204,7 +206,8 @@ test('durchgängige Planung auf dem Desktop', async ({ page }, info) => {
   await expect(page.getByText('nicht unter eine ihrer eigenen Unterseiten')).toBeVisible()
 
   await openSection(page, 'Dokumentation')
-  await page.getByRole('button', { name: 'Entscheidung anlegen' }).click()
+  await page.getByRole('button', { name: 'Neu', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Entscheidung anlegen' }).click()
   await expect(page.locator('.ProseMirror')).toContainText('Kontext')
   await expect(page.locator('.ProseMirror')).toContainText('Konsequenzen')
   await change(page, '/documents/', 'PUT', async () => {

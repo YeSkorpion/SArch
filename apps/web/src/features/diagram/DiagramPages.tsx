@@ -115,29 +115,30 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
   const filtered = Boolean(area || term)
   const hasDiagrams = (diagrams.data?.length ?? 0) > 0
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:px-8">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <div className="grid w-full max-w-6xl gap-6 px-4 py-6 md:px-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-3">
-          <h1 className="text-2xl font-semibold">{title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           {kind === 'System' ? <ArchitectureTabs projectId={project.id} current="diagrams" /> : null}
         </div>
         {canWrite && (hasDiagrams || filtered) ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Diagramm anlegen</Button> : null}
       </header>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card p-2">
+        <Input className="studio-inline max-w-xs" aria-label="Diagramme suchen" value={term} placeholder="Suchen" onChange={(event) => filter({ q: event.target.value })} />
         <Select className="studio-inline" aria-label="Bereich filtern" value={area} onChange={(event) => filter({ bereich: event.target.value })}>
           <option value="">Alle Bereiche</option>
           <option value="none">Ohne Bereich</option>
           {areas.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </Select>
-        <Input className="studio-inline max-w-xs" aria-label="Diagramme suchen" value={term} placeholder="Suchen" onChange={(event) => filter({ q: event.target.value })} />
         {canWrite ? <Button size="sm" type="button" onClick={() => setViewOpen(true)}>Ansicht speichern</Button> : null}
+        {filtered ? <Button size="sm" type="button" variant="ghost" onClick={() => filter({ bereich: '', q: '' })}>Filter zurücksetzen</Button> : null}
       </div>
       {views.data && views.data.length > 0 ? (
         <nav aria-label="Gespeicherte Ansichten" className="flex flex-wrap gap-2">
           {views.data.map((view) => (
-            <span key={view.id} className="inline-flex items-center gap-1 rounded-md border border-line bg-card px-2 py-1 text-sm">
+            <span key={view.id} className="inline-flex items-center gap-1 rounded-md border border-line bg-nav px-2 py-1 text-sm">
               <Link className="underline" to={viewHref(project.id, kind, view)}>{view.name}</Link>
-              {canWrite ? <Button size="sm" type="button" variant="ghost" onClick={() => removeView.mutate(view.id)}>Entfernen</Button> : null}
+              {canWrite ? <Button size="sm" type="button" variant="ghost" aria-label={`Ansicht entfernen: ${view.name}`} onClick={() => removeView.mutate(view.id)}>Ansicht entfernen</Button> : null}
             </span>
           ))}
         </nav>
@@ -161,7 +162,11 @@ export function DiagramListPage({ kind }: { kind: DiagramKind }) {
             {items.map((diagram) => (
               <li key={diagram.id} className="flex items-center gap-2 border-b border-line">
                 <Link className="min-w-0 flex-1 py-2.5 font-medium break-words" to={`/projekte/${project.id}/diagramme/${diagram.id}`}>{diagram.name}</Link>
-                {canWrite ? <Button className="mr-2" size="sm" type="button" variant="danger" onClick={() => setPendingDelete(diagram)}>Löschen</Button> : null}
+                {canWrite ? (
+                  <Menu trigger={<button className="grid h-8 w-8 place-items-center rounded-md hover:bg-background" type="button" aria-label={`Aktionen für ${diagram.name}`}><MoreHorizontal size={16} aria-hidden="true" /></button>}>
+                    <MenuItem onSelect={() => setPendingDelete(diagram)}>Löschen</MenuItem>
+                  </Menu>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -825,7 +830,7 @@ export function ComponentsPage() {
     },
   })
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:px-8">
+    <div className="grid w-full max-w-6xl gap-6 px-4 py-6 md:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="grid gap-3">
           <h1 className="text-2xl font-semibold">Komponenten</h1>

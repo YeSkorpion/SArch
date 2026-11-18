@@ -7,13 +7,13 @@ import type { Area, ArtifactReviewComment, Usage, UsageHit } from '../../lib/typ
 
 const types = ['', 'requirement', 'node', 'screen', 'component', 'decision', 'document', 'process', 'system']
 
-export function UsagePanel({ projectId, artifactId, title }: { projectId: string; artifactId: string; title: string }) {
+export function UsagePanel({ projectId, artifactId, title, heading = true }: { projectId: string; artifactId: string; title: string; heading?: boolean }) {
   const areas = useQuery({ queryKey: ['areas', projectId], queryFn: () => api<Area[]>(`/api/v1/projects/${projectId}/areas`) })
   const [type, setType] = useState('')
   const [area, setArea] = useState('')
   return (
     <section className="grid gap-3 border-t border-line pt-3">
-      <h2 className="text-sm font-semibold">Auswirkungen</h2>
+      {heading ? <h2 className="text-sm font-semibold">Auswirkungen</h2> : null}
       <div className="flex flex-wrap gap-2">
         <select className="studio-inline" aria-label="Auswirkungen nach Typ filtern" value={type} onChange={(event) => setType(event.target.value)}>
           {types.map((item) => <option key={item || 'all'} value={item}>{item ? searchTypeLabel(item) : 'Alle Typen'}</option>)}

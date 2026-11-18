@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { PanelsTopLeft } from 'lucide-react'
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router'
+import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
 import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
 import { Button, Field, Input, Modal, Select, Textarea } from '../../components/ui'
@@ -20,6 +20,8 @@ const statuses: ScreenStatus[] = ['Entwurf', 'Review', 'Abgestimmt']
 export function ScreensPage() {
   const { project, canWrite } = useOutletContext<ProjectOutlet>()
   const screens = useQuery({ queryKey: ['screens', project.id], queryFn: () => api<Screen[]>(`/api/v1/projects/${project.id}/screens`) })
+  const [params, setParams] = useSearchParams()
+  const term = params.get('q') ?? ''
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [route, setRoute] = useState('/')
@@ -33,23 +35,38 @@ export function ScreensPage() {
     },
   })
   const hasScreens = (screens.data?.length ?? 0) > 0
+  const needle = term.trim().toLowerCase()
+  const visible = (screens.data ?? []).filter((screen) => !needle || screen.name.toLowerCase().includes(needle) || screen.route.toLowerCase().includes(needle))
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:px-8">
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">UI-Planung</h1>
+    <div className="grid w-full max-w-6xl gap-6 px-4 py-6 md:px-6">
+      <header className="flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">UI-Planung</h1>
+          <p className="mt-1 text-sm text-muted">Suche über Name und Route aller sichtbaren Screens.</p>
+        </div>
         {canWrite && hasScreens ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Screen anlegen</Button> : null}
       </header>
+      {hasScreens ? (
+        <Input aria-label="Screens suchen" placeholder="Name oder Route" value={term} onChange={(event) => {
+          const next = new URLSearchParams(params)
+          if (event.target.value) next.set('q', event.target.value)
+          else next.delete('q')
+          setParams(next, { replace: true })
+        }} />
+      ) : null}
       {screens.isLoading ? <Loading /> : null}
       {screens.isError ? <ErrorState error={screens.error} onRetry={() => void screens.refetch()} /> : null}
       {screens.data?.length === 0 ? <EmptyState title="Keine Screens" body="Plane Routen und Wireframes, bevor die Oberfläche gebaut wird." action={canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Screen anlegen</Button> : undefined} /> : null}
+      {hasScreens && visible.length === 0 ? <EmptyState title="Keine Treffer" body="Kein Screen enthält diesen Namen oder diese Route." action={<Button type="button" onClick={() => setParams({}, { replace: true })}>Suche zurücksetzen</Button>} /> : null}
       <ul className="divide-y divide-line">
-        {screens.data?.map((screen) => (
+        {visible.map((screen) => (
           <li key={screen.id}>
             <Link className="flex items-center gap-3 py-2.5" to={`/projekte/${project.id}/ui/${screen.id}`}>
               <ScreenMark json={screen.wireframeJson} />
               <span className="min-w-0">
-                <span className="block font-medium break-words">{screen.name}</span>
-                <span className="block font-mono text-xs text-muted">{screen.route}</span>
+                <span className="block truncate font-medium">{screen.name}</span>
+                <span className="block truncate font-mono text-xs text-muted">{screen.route}</span>
+                {screen.purpose ? <span className="block truncate text-xs text-muted">{screen.purpose}</span> : null}
               </span>
             </Link>
           </li>

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Field, Input, Modal, Select, Textarea } from '../../components/ui'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
@@ -103,7 +104,16 @@ export function PackageDetailPage() {
   const [comment, setComment] = useState('')
   const [target, setTarget] = useState('')
   const [reason, setReason] = useState('')
-  const [usageId, setUsageId] = useState('')
+  const [params, setParams] = useSearchParams()
+  const [adding, setAdding] = useState(false)
+  const impactId = params.get('auswirkung') ?? ''
+  const impactOpener = useRef<HTMLButtonElement | null>(null)
+  function showImpact(id: string) {
+    const next = new URLSearchParams(params)
+    if (id) next.set('auswirkung', id)
+    else next.delete('auswirkung')
+    setParams(next, { replace: true })
+  }
   const [message, setMessage] = useState('')
   const search = useQuery({
     queryKey: ['search', project.id, term],
@@ -152,30 +162,46 @@ export function PackageDetailPage() {
   if (detail.isError || !detail.data) return <div className="p-6"><ErrorState error={detail.error} onRetry={() => void detail.refetch()} /></div>
   const item = detail.data
   const canReview = project.role === 'Owner' || (project.role === 'Editor' && item.reviewerId === user.id)
-  const selected = item.items.find((entry) => entry.artifactId === usageId) ?? item.items[0]
+  const impact = item.items.find((entry) => entry.artifactId === impactId && !entry.missing)
+  const primary = item.status === 'Freigegeben'
+    ? <Button type="button" variant="primary" onClick={() => handover.mutate()}>Übergabe als Markdown</Button>
+    : canWrite && (item.status === 'Entwurf' || item.reviewStale)
+      ? <Button type="button" variant="primary" onClick={() => act.mutate('submit')}>Zur Prüfung einreichen</Button>
+      : canReview && item.status === 'InPruefung'
+        ? <Button type="button" variant="primary" onClick={() => act.mutate('approve')}>Freigeben</Button>
+        : null
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 p-4 md:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted"><Link className="underline-offset-2 hover:underline" to={`/projekte/${project.id}/aenderungen`}>Änderungen</Link></p>
-          <h1 className="text-2xl font-semibold tracking-tight">{item.title}</h1>
-          <p className="mt-2 max-w-3xl text-sm">{item.goal}</p>
+    <div className="grid max-w-6xl gap-6 px-4 py-6 md:px-6">
+      <header className="grid gap-3">
+        <Link className="text-sm text-muted underline-offset-2 hover:underline" to={`/projekte/${project.id}/aenderungen`}>Zur Änderungsliste</Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{item.title}</h1>
+            <Badge tone={item.status === 'Freigegeben' ? 'ok' : item.reviewStale ? 'warning' : 'accent'}>{item.reviewStale ? 'Prüfstand überholt' : statusLabel(item.status)}</Badge>
+          </div>
+          {primary}
         </div>
-        <Badge tone={item.status === 'Freigegeben' ? 'ok' : item.reviewStale ? 'warning' : 'accent'}>{item.reviewStale ? 'Prüfstand überholt' : statusLabel(item.status)}</Badge>
+        <div className="grid gap-1 rounded-xl bg-card p-4 text-sm sm:grid-cols-2">
+          <p><span className="text-muted">Ziel. </span>{item.goal}</p>
+          <p><span className="text-muted">Verantwortlich. </span>{item.ownerName}</p>
+          <p><span className="text-muted">Prüfung. </span>{item.reviewerName ?? 'nicht zugewiesen'}</p>
+          <p><span className="text-muted">Bereich. </span>{item.areaName ?? 'keiner'}</p>
+        </div>
       </header>
-      <p className="text-sm text-muted">Verantwortlich: {item.ownerName}. Prüfung: {item.reviewerName ?? 'nicht zugewiesen'}.{item.areaName ? ` Bereich: ${item.areaName}.` : ''}</p>
-      {item.reviewSnapshotId ? <p className="text-sm"><Link className="underline-offset-2 hover:underline" to={`/projekte/${project.id}/staende/${item.reviewSnapshotId}`}>Aktuellen Prüfstand öffnen</Link></p> : null}
       {message ? <p role="status" className="text-sm">{message}</p> : null}
       <section className="grid gap-3">
-        <h2 className="text-lg font-semibold">Betroffene Artefakte</h2>
-        {canWrite && item.status !== 'Freigegeben' ? (
-          <div className="grid gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Betroffene Artefakte</h2>
+          {canWrite && item.status !== 'Freigegeben' ? <Button size="sm" type="button" aria-expanded={adding} onClick={() => setAdding((value) => !value)}>Artefakt hinzufügen</Button> : null}
+        </div>
+        {adding ? (
+          <div className="grid gap-2 rounded-lg border border-line bg-card p-3">
             <Input aria-label="Notiz zum Artefakt" value={note} onChange={(event) => setNote(event.target.value)} />
             <Input aria-label="Artefakt suchen" placeholder="Artefakt suchen" value={term} onChange={(event) => setTerm(event.target.value)} />
             <ul>
               {search.data?.map((hit) => (
                 <li key={hit.id}>
-                  <button className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-card" type="button" onClick={() => add.mutate(hit)}>
+                  <button className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-background" type="button" onClick={() => add.mutate(hit)}>
                     {searchTypeLabel(hit.type)}: {hit.title}
                   </button>
                 </li>
@@ -184,25 +210,36 @@ export function PackageDetailPage() {
           </div>
         ) : null}
         {item.items.length === 0 ? <p className="text-sm text-muted">Noch keine Artefakte im Paket.</p> : null}
-        <ul className="grid gap-1">
+        <ul className="divide-y divide-line">
           {item.items.map((entry) => (
-            <li key={entry.id} className="flex flex-wrap items-baseline gap-2 text-sm">
-              <span className="text-xs text-muted">{searchTypeLabel(entry.artifactType)}</span>
-              {entry.missing ? <span>{entry.artifactTitle} · nicht mehr im Projekt</span> : <Link className="font-medium underline-offset-2 hover:underline" to={artifactHref(project.id, entry.artifactType, entry.artifactId, entry.diagramId)}>{entry.artifactTitle}</Link>}
-              <span className="text-muted">{entry.note}</span>
+            <li key={entry.id} className="flex items-center gap-3 py-2">
+              <span className="w-28 shrink-0 text-xs text-muted">{searchTypeLabel(entry.artifactType)}</span>
+              <div className="min-w-0 flex-1">
+                {entry.missing ? <span className="block truncate font-medium">{entry.artifactTitle}</span> : <Link className="block truncate font-medium underline-offset-2 hover:underline" to={artifactHref(project.id, entry.artifactType, entry.artifactId, entry.diagramId)}>{entry.artifactTitle}</Link>}
+                <span className="block truncate text-sm text-muted">{entry.missing ? 'nicht mehr im Projekt' : entry.note}</span>
+              </div>
+              {entry.missing ? null : (
+                <Button size="sm" type="button" onClick={(event) => { impactOpener.current = event.currentTarget; showImpact(entry.artifactId) }}>Auswirkungen ansehen</Button>
+              )}
             </li>
           ))}
         </ul>
       </section>
-      {selected && !selected.missing ? (
-        <section className="rounded-xl border border-line bg-card p-4">
-          <label className="text-sm font-medium" htmlFor="usage-entry">Auswirkungen eines Eintrags</label>
-          <Select id="usage-entry" className="studio-inline mt-2" value={selected.artifactId} onChange={(event) => setUsageId(event.target.value)}>
-            {item.items.filter((entry) => !entry.missing).map((entry) => <option key={entry.id} value={entry.artifactId}>{entry.artifactTitle}</option>)}
-          </Select>
-          <UsagePanel projectId={project.id} artifactId={selected.artifactId} title={selected.artifactTitle} />
-        </section>
-      ) : null}
+      <Dialog.Root open={Boolean(impact)} onOpenChange={(open) => { if (!open) showImpact('') }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="studio-overlay fixed inset-0 z-40 bg-black/40" />
+          <Dialog.Content
+            className="studio-drawer fixed inset-y-0 right-0 z-50 w-[min(32rem,100%)] overflow-auto border-l border-line bg-card p-4 shadow-overlay"
+            aria-describedby={undefined}
+            onCloseAutoFocus={(event) => { event.preventDefault(); impactOpener.current?.focus() }}
+          >
+            <Dialog.Title className="text-lg font-semibold">Auswirkungen</Dialog.Title>
+            {impact ? <p className="mt-1 text-sm text-muted">Bezug: {impact.artifactTitle}</p> : null}
+            <Dialog.Close className="mt-3 text-sm underline" type="button">Schließen</Dialog.Close>
+            {impact ? <UsagePanel projectId={project.id} artifactId={impact.artifactId} title={impact.artifactTitle} heading={false} /> : null}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       <section className="grid gap-3">
         <h2 className="text-lg font-semibold">Kommentare</h2>
         {item.comments.length === 0 ? <p className="text-sm text-muted">Keine Kommentare.</p> : null}
@@ -231,15 +268,14 @@ export function PackageDetailPage() {
         {item.decisions.map((entry) => (
           <p key={entry.id} className="text-sm text-muted">{entry.actorName}: {entry.action}{entry.reason ? ` · ${entry.reason}` : ''}</p>
         ))}
-        {canWrite && (item.status === 'Entwurf' || item.reviewStale) ? <Button type="button" variant="primary" onClick={() => act.mutate('submit')}>Einreichen</Button> : null}
+        {item.reviewSnapshotId ? <p className="text-sm">Aktueller Prüfstand: <Link className="underline-offset-2 hover:underline" to={`/projekte/${project.id}/staende/${item.reviewSnapshotId}`}>Fassung öffnen</Link></p> : null}
+        {item.approvedSnapshotId ? <p className="text-sm">Die Freigabe bezieht sich auf <Link className="underline-offset-2 hover:underline" to={`/projekte/${project.id}/staende/${item.approvedSnapshotId}`}>diesen Stand</Link>.</p> : null}
         {canReview && item.status === 'InPruefung' ? (
           <div className="flex flex-wrap items-end gap-2">
             <Input aria-label="Begründung" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Begründung" />
             <Button type="button" onClick={() => act.mutate('request-changes')}>Änderungen anfordern</Button>
-            <Button type="button" variant="primary" onClick={() => act.mutate('approve')}>Freigeben</Button>
           </div>
         ) : null}
-        {item.status === 'Freigegeben' ? <Button type="button" variant="primary" onClick={() => handover.mutate()}>Übergabe als Markdown</Button> : null}
       </section>
     </div>
   )

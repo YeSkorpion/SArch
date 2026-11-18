@@ -68,11 +68,11 @@ export function Shell({ user }: { user: User }) {
   const crumbs = breadcrumb(location.pathname, current.name, diagram.data)
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
+    <div className="h-dvh overflow-hidden lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
       <a className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2" href="#inhalt">
         Zum Inhalt
       </a>
-      <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-nav lg:flex">
+      <aside className="hidden h-dvh flex-col border-r border-line bg-nav lg:flex">
         <div className="px-3 pt-4">
           <Brand to="/projekte" />
         </div>
@@ -82,8 +82,8 @@ export function Shell({ user }: { user: User }) {
         </Menu>
         <ProjectNav projectId={current.id} pathname={location.pathname} />
       </aside>
-      <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-nav px-3">
+      <div className="flex h-dvh min-w-0 flex-col">
+        <header className="z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-nav px-3">
           <span className="inline-flex shrink-0 lg:hidden">
             <Brand mark to="/projekte" />
           </span>
@@ -134,7 +134,7 @@ export function Shell({ user }: { user: User }) {
             </aside>
           </div>
         ) : null}
-        <main id="inhalt" className="min-w-0 overflow-x-clip">
+        <main id="inhalt" className="min-h-0 min-w-0 flex-1 overflow-auto">
           <Outlet context={{ project: current, canWrite, canManage, user } satisfies ProjectOutlet} />
         </main>
       </div>
@@ -176,7 +176,7 @@ function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pa
           to={segment ? `/projekte/${projectId}/${segment}` : `/projekte/${projectId}`}
           end={segment === ''}
           onClick={onNavigate}
-          className={({ isActive }) => `flex items-center gap-2 rounded-md px-2 py-2 text-sm ${isActive || moduleActive(segment, pathname, diagram.data?.kind) ? 'bg-accent/12 font-semibold text-accent' : 'hover:bg-background'}`}
+          className={({ isActive }) => `flex items-center gap-2 rounded-md px-2 py-2 text-sm ${isActive || moduleActive(segment, pathname, diagram.data?.kind) ? 'bg-card font-semibold text-accent ring-1 ring-accent/30' : 'hover:bg-background'}`}
         >
           <Icon size={16} aria-hidden="true" />
           <span className="min-w-0 break-words">{label}</span>

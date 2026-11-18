@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MoreHorizontal } from 'lucide-react'
 import { useState } from 'react'
-import { useOutletContext } from 'react-router'
+import { Link, useOutletContext } from 'react-router'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
-import { Button, ConfirmDialog, Field, Input, Modal, PageHeader, Textarea } from '../../components/ui'
+import { Button, ConfirmDialog, Field, Input, Menu, MenuItem, Modal, PageHeader, Textarea } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import type { Area } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
@@ -43,7 +44,7 @@ export function AreasPage() {
   const createButton = canWrite ? <Button type="button" variant="primary" onClick={() => { setMessage(''); setOpen(true) }}>Bereich anlegen</Button> : undefined
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 md:px-8">
+    <div className="grid w-full max-w-6xl gap-6 px-4 py-6 md:px-6">
       <PageHeader title="Bereiche" description="Bereiche bündeln Prozesse und Systemdiagramme." action={hasAreas ? createButton : undefined} />
       {message && !open ? <p className="text-sm" role="status">{message}</p> : null}
       {areas.isLoading ? <Loading /> : null}
@@ -53,13 +54,17 @@ export function AreasPage() {
       ) : null}
       <ul className="divide-y divide-line">
         {areas.data?.map((area) => (
-          <li key={area.id} className="flex items-start justify-between gap-3 py-3">
-            <div className="min-w-0">
+          <li key={area.id} className="flex items-start gap-3 py-3">
+            <Link className="min-w-0 flex-1 rounded-md hover:text-accent" to={`/projekte/${project.id}/prozesse?bereich=${area.id}`}>
               <h2 className="font-medium break-words">{area.name}</h2>
-              {area.description ? <p className="text-sm text-muted">{area.description}</p> : null}
+              {area.description ? <p className="line-clamp-2 text-sm text-muted">{area.description}</p> : null}
               <p className="text-sm text-muted">{area.diagramCount} Diagramme</p>
-            </div>
-            {canWrite ? <Button size="sm" type="button" onClick={() => setPendingDelete(area)}>Löschen</Button> : null}
+            </Link>
+            {canWrite ? (
+              <Menu trigger={<button className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-background" type="button" aria-label={`Aktionen für ${area.name}`}><MoreHorizontal size={16} aria-hidden="true" /></button>}>
+                <MenuItem onSelect={() => setPendingDelete(area)}>Löschen</MenuItem>
+              </Menu>
+            ) : null}
           </li>
         ))}
       </ul>

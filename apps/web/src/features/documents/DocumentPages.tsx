@@ -9,11 +9,12 @@ import TaskList from '@tiptap/extension-task-list'
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, type ReactNodeViewProps } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router'
+import { ChevronRight, FileText, Scale, Search } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
 import { EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
-import { Button, Field, Input, Modal, Select } from '../../components/ui'
+import { Button, Field, Input, Menu, MenuItem, Modal, Select } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
 import { artifactHref, createsCycle, documentStatusLabel } from '../../lib/labels'
@@ -82,49 +83,236 @@ function ArtifactView({ node }: ReactNodeViewProps) {
 export function DocumentsPage() {
   const { project, canWrite } = useOutletContext<ProjectOutlet>()
   const documents = useQuery({ queryKey: ['documents', project.id], queryFn: () => api<DocumentListItem[]>(`/api/v1/projects/${project.id}/documents`) })
-  const client = useQueryClient()
-  const navigate = useNavigate()
-  const create = useMutation({
-    mutationFn: (kind: DocumentKind) => api<Document>(`/api/v1/projects/${project.id}/documents`, { method: 'POST', body: { title: kind === 'Decision' ? 'Neue Entscheidung' : 'Neue Seite', kind } }),
-    onSuccess: async (document) => {
-      await client.invalidateQueries({ queryKey: ['documents', project.id] })
-      await navigate(`/projekte/${project.id}/dokumente/${document.id}`)
-    },
-  })
+  if (documents.isLoading) return <Loading />
+  if (documents.isError) return <div className="p-6"><ErrorState error={documents.error} onRetry={() => void documents.refetch()} /></div>
+  const entry = entryPage(documents.data ?? [])
+  if (entry) return <Navigate to={`/projekte/${project.id}/dokumente/${entry.id}`} replace />
+  const roots = (documents.data ?? []).filter((item) => !item.parentId)
   return (
-    <div className="grid gap-4 p-4 md:grid-cols-[16rem_minmax(0,1fr)] md:p-6">
-      <aside>
-        <h1 className="text-xl font-semibold">Dokumentation</h1>
-        {canWrite ? (
-          <div className="mt-3 grid gap-2">
-            <Button type="button" onClick={() => create.mutate('Page')}>Seite anlegen</Button>
-            <Button type="button" onClick={() => create.mutate('Decision')}>Entscheidung anlegen</Button>
-          </div>
-        ) : null}
-        {documents.isLoading ? <Loading /> : null}
-        {documents.isError ? <ErrorState error={documents.error} onRetry={() => void documents.refetch()} /> : null}
-        {documents.data ? <Tree projectId={project.id} items={documents.data} parentId={null} /> : null}
+    <DocFrame projectId={project.id} canWrite={canWrite} activeId={null} items={documents.data ?? []}>
+      <div className="mx-auto w-full max-w-[68ch] px-4 py-6 md:px-8">
+        {roots.length === 0 ? (
+          <EmptyState title="Noch keine Seiten" body="Lege eine Seite oder eine Architekturentscheidung an." />
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold tracking-tight">Dokumentation</h1>
+            <p className="mt-1 text-sm text-muted">Oberste Ebene. Wähle eine Seite, um sie zu lesen.</p>
+            <ul className="mt-4 divide-y divide-line">
+              {roots.map((item) => (
+                <li key={item.id}>
+                  <Link className="block py-2.5 font-medium" to={`/projekte/${project.id}/dokumente/${item.id}`}>{item.title}</Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </DocFrame>
+  )
+}
+
+function entryPage(items: DocumentListItem[]) {
+  const roots = items.filter((item) => !item.parentId)
+  return roots.find((item) => /überblick|ueberblick|startseite|index/i.test(item.title)) ?? (roots.length === 1 ? roots[0] : null)
+}
+
+function DocFrame({ projectId, canWrite, activeId, items, children }: { projectId: string; canWrite: boolean; activeId: string | null; items?: DocumentListItem[]; children: ReactNode }) {
+  const documents = useQuery({ queryKey: ['documents', projectId], queryFn: () => api<DocumentListItem[]>(`/api/v1/projects/${projectId}/documents`) })
+  const list = items ?? documents.data ?? []
+  const reader = useRef<HTMLDivElement>(null)
+  const [drawer, setDrawer] = useState(false)
+  const drawerButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    reader.current?.scrollTo(0, 0)
+  }, [activeId])
+  return (
+    <div className="flex h-full min-h-0">
+      <aside className="hidden w-[280px] shrink-0 flex-col overflow-hidden border-r border-line bg-nav lg:flex" aria-label="Seitenstruktur">
+        <DocTree projectId={projectId} canWrite={canWrite} items={list} activeId={activeId} onOpen={() => setDrawer(false)} />
       </aside>
-      <section>
-        {documents.data?.length === 0 ? <EmptyState title="Noch keine Seiten" body="Lege eine Seite oder eine Architekturentscheidung an." /> : <p className="text-sm text-muted">Wähle eine Seite in der Struktur.</p>}
-      </section>
+      <div ref={reader} className="min-h-0 min-w-0 flex-1 overflow-auto">
+        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-nav px-3 py-2 lg:hidden">
+          <button ref={drawerButton} className="inline-flex h-8 items-center rounded-md border border-line bg-card px-2 text-sm font-medium" type="button" onClick={() => setDrawer(true)}>Seitenstruktur</button>
+        </div>
+        {children}
+      </div>
+      {drawer ? (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Seitenstruktur ausblenden" onClick={() => { setDrawer(false); drawerButton.current?.focus() }} />
+          <aside className="studio-drawer absolute inset-y-0 left-0 flex w-[min(20rem,100%)] flex-col bg-nav shadow-overlay" aria-label="Seitenstruktur">
+            <div className="flex items-center justify-between px-3 pt-3">
+              <p className="text-sm font-semibold">Seitenstruktur</p>
+              <button className="rounded-md px-2 py-1 text-sm" type="button" onClick={() => { setDrawer(false); drawerButton.current?.focus() }}>Schließen</button>
+            </div>
+            <DocTree projectId={projectId} canWrite={canWrite} items={list} activeId={activeId} onOpen={() => setDrawer(false)} />
+          </aside>
+        </div>
+      ) : null}
     </div>
   )
 }
 
-function Tree({ projectId, items, parentId }: { projectId: string; items: DocumentListItem[]; parentId: string | null }) {
+function DocTree({ projectId, canWrite, items, activeId, onOpen }: { projectId: string; canWrite: boolean; items: DocumentListItem[]; activeId: string | null; onOpen: () => void }) {
+  const client = useQueryClient()
+  const navigate = useNavigate()
+  const create = useMutation({
+    mutationFn: (kind: DocumentKind) => api<Document>(`/api/v1/projects/${projectId}/documents`, { method: 'POST', body: { title: kind === 'Decision' ? 'Neue Entscheidung' : 'Neue Seite', kind } }),
+    onSuccess: async (document) => {
+      await client.invalidateQueries({ queryKey: ['documents', projectId] })
+      onOpen()
+      await navigate(`/projekte/${projectId}/dokumente/${document.id}`)
+    },
+  })
+  const [query, setQuery] = useState('')
+  const [openIds, setOpenIds] = useState<string[] | null>(() => readOpen(projectId))
+  const path = useMemo(() => ancestors(items, activeId), [items, activeId])
+  const visibleOpen = openIds ?? defaultOpen(items, path)
+  useEffect(() => {
+    if (items.length === 0) return
+    setOpenIds((current) => {
+      const base = current ?? defaultOpen(items, path)
+      const next = [...new Set([...base, ...path])]
+      if (current && sameIds(current, next)) return current
+      writeOpen(projectId, next)
+      return next
+    })
+  }, [projectId, items, path])
+  function toggle(id: string) {
+    setOpenIds((current) => {
+      const base = current ?? defaultOpen(items, path)
+      const next = base.includes(id) ? base.filter((item) => item !== id) : [...base, id]
+      writeOpen(projectId, next)
+      return next
+    })
+  }
+  const needle = query.trim().toLowerCase()
+  const hits = needle ? items.filter((item) => item.title.toLowerCase().includes(needle)) : []
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between gap-2 px-3 pt-3">
+        <h2 className="text-sm font-semibold">Seiten</h2>
+        {canWrite ? (
+          <Menu trigger={<Button size="sm" type="button" variant="primary">Neu</Button>}>
+            <MenuItem onSelect={() => create.mutate('Page')}>Seite anlegen</MenuItem>
+            <MenuItem onSelect={() => create.mutate('Decision')}>Entscheidung anlegen</MenuItem>
+          </Menu>
+        ) : null}
+      </div>
+      <div className="relative px-3 py-2">
+        <Search className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted" size={14} aria-hidden="true" />
+        <input className="h-8 w-full rounded-md border border-line bg-card pr-2 pl-8 text-sm" aria-label="Seitenbaum durchsuchen" placeholder="Seitentitel" value={query} onChange={(event) => setQuery(event.target.value)} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-3">
+        {needle ? (
+          hits.length === 0 ? <p className="px-2 py-2 text-sm text-muted">Keine Seite mit diesem Titel.</p> : (
+            <ul className="grid gap-0.5">
+              {hits.map((item) => (
+                <li key={item.id}>
+                  <Link className="block rounded-md px-2 py-1.5 hover:bg-background" to={`/projekte/${projectId}/dokumente/${item.id}`} onClick={onOpen}>
+                    <span className="block truncate text-sm font-medium" title={item.title}>{item.title}</span>
+                    <span className="block truncate text-xs text-muted">{documentPath(items, item.id)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : (
+          <TreeNodes projectId={projectId} items={items} parentId={null} depth={0} openIds={visibleOpen} activeId={activeId} onToggle={toggle} onOpen={onOpen} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TreeNodes({ projectId, items, parentId, depth, openIds, activeId, onToggle, onOpen }: { projectId: string; items: DocumentListItem[]; parentId: string | null; depth: number; openIds: string[]; activeId: string | null; onToggle: (id: string) => void; onOpen: () => void }) {
   const children = items.filter((item) => item.parentId === parentId)
   if (children.length === 0) return null
   return (
-    <ul className="mt-2 grid gap-1 pl-3">
-      {children.map((item) => (
-        <li key={item.id}>
-          <Link className="text-sm underline" to={`/projekte/${projectId}/dokumente/${item.id}`}>{item.title}</Link>
-          <Tree projectId={projectId} items={items} parentId={item.id} />
-        </li>
-      ))}
+    <ul className="grid gap-0.5">
+      {children.map((item) => {
+        const nested = items.some((child) => child.parentId === item.id)
+        const open = openIds.includes(item.id)
+        const active = item.id === activeId
+        return (
+          <li key={item.id}>
+            <div className="flex min-w-0 items-center" style={{ paddingLeft: Math.min(depth, 8) * 12 }}>
+              {nested ? (
+                <button className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-background" type="button" aria-expanded={open} aria-label={open ? `${item.title} zuklappen` : `${item.title} aufklappen`} onClick={() => onToggle(item.id)}>
+                  <ChevronRight size={14} className={open ? 'rotate-90 transition-transform duration-150' : 'transition-transform duration-150'} aria-hidden="true" />
+                </button>
+              ) : <span className="w-7 shrink-0" />}
+              <Link
+                className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-sm ${active ? 'bg-accent/12 font-medium text-accent' : 'hover:bg-background'}`}
+                to={`/projekte/${projectId}/dokumente/${item.id}`}
+                aria-current={active ? 'page' : undefined}
+                title={item.title}
+                ref={active ? scrollActive : undefined}
+                onClick={onOpen}
+              >
+                {item.kind === 'Decision' ? <Scale size={14} className="shrink-0" aria-hidden="true" /> : <FileText size={14} className="shrink-0" aria-hidden="true" />}
+                <span className="truncate">{item.title}</span>
+              </Link>
+            </div>
+            {nested && open ? <TreeNodes projectId={projectId} items={items} parentId={item.id} depth={depth + 1} openIds={openIds} activeId={activeId} onToggle={onToggle} onOpen={onOpen} /> : null}
+          </li>
+        )
+      })}
     </ul>
   )
+}
+
+function scrollActive(node: HTMLAnchorElement | null) {
+  node?.scrollIntoView({ block: 'nearest' })
+}
+
+function ancestors(items: DocumentListItem[], id: string | null) {
+  const parents = new Map(items.map((item) => [item.id, item.parentId]))
+  const path: string[] = []
+  let current = id ? parents.get(id) : null
+  while (current) {
+    path.push(current)
+    current = parents.get(current) ?? null
+  }
+  return path
+}
+
+function documentPath(items: DocumentListItem[], id: string) {
+  const byId = new Map(items.map((item) => [item.id, item]))
+  const names: string[] = []
+  let current = byId.get(id)?.parentId ?? null
+  while (current) {
+    const item = byId.get(current)
+    if (!item) break
+    names.unshift(item.title)
+    current = item.parentId
+  }
+  return names.length ? names.join(' / ') : 'Oberste Ebene'
+}
+
+function defaultOpen(items: DocumentListItem[], path: string[]) {
+  const roots = items.filter((item) => !item.parentId && items.some((child) => child.parentId === item.id)).map((item) => item.id)
+  return [...new Set([...roots, ...path])]
+}
+
+function sameIds(left: string[], right: string[]) {
+  if (left.length !== right.length) return false
+  const values = new Set(left)
+  return right.every((item) => values.has(item))
+}
+
+function readOpen(projectId: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(`studio-doc-open-${projectId}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : null
+  } catch {
+    return null
+  }
+}
+
+function writeOpen(projectId: string, ids: string[]) {
+  localStorage.setItem(`studio-doc-open-${projectId}`, JSON.stringify(ids))
 }
 
 export function DocumentEditorPage() {
@@ -138,16 +326,18 @@ export function DocumentEditorPage() {
   if (document.isLoading) return <Loading />
   if (document.isError) return <div className="p-6"><ErrorState error={document.error} onRetry={() => void document.refetch()} /></div>
   return (
-    <DocumentEditor
-      key={`${document.data!.id}-${generation}`}
-      projectId={project.id}
-      canWrite={canWrite}
-      initial={document.data!}
-      reload={async () => {
-        await document.refetch()
-        setGeneration((value) => value + 1)
-      }}
-    />
+    <DocFrame projectId={project.id} canWrite={canWrite} activeId={document.data!.id}>
+      <DocumentEditor
+        key={`${document.data!.id}-${generation}`}
+        projectId={project.id}
+        canWrite={canWrite}
+        initial={document.data!}
+        reload={async () => {
+          await document.refetch()
+          setGeneration((value) => value + 1)
+        }}
+      />
+    </DocFrame>
   )
 }
 
@@ -252,13 +442,12 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
 
   useEffect(() => () => { editor?.destroy() }, [editor])
 
+  const path = documentPath(documents.data ?? [], initial.id)
   return (
-    <div className="grid gap-4 p-4 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]">
+    <div className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5 md:px-8">
       <LeaveGuard when={dirty || autosave.state === 'conflict'} />
-      <aside>
-        <DocumentsTree projectId={projectId} />
-      </aside>
       <section className="grid gap-3">
+        <p className="truncate font-mono text-xs text-muted" title={path}>{path}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Input aria-label="Seitentitel" value={title} disabled={!canWrite} onChange={(event) => { setTitle(event.target.value); setDirty(true) }} />
           <SaveBadge state={autosave.state} />
@@ -306,9 +495,9 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
         </div>
         {message ? <p role="status" className="text-sm">{message}</p> : null}
       </section>
-      <aside className="grid content-start gap-3">
-        <h2 className="font-semibold">Revisionen</h2>
-        <ul className="grid gap-1">
+      <section className="grid content-start gap-3 border-t border-line pt-4">
+        <h2 className="text-sm font-semibold">Revisionen</h2>
+        <ul className="flex flex-wrap gap-2">
           {revisions.data?.map((item) => (
             <li key={item.id}>
               <button className="text-left text-sm underline" type="button" onClick={() => setRevision(item.number)}>
@@ -327,7 +516,7 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
         ) : null}
         <LinkPanel projectId={projectId} artifactId={initial.id} mode="document" canWrite={false} />
         <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} />
-      </aside>
+      </section>
       <Modal open={linkOpen} onOpenChange={setLinkOpen} title="Interner Artefaktlink">
         <Input value={term} aria-label="Artefakt suchen" placeholder="Suchen" onChange={(event) => setTerm(event.target.value)} />
         <ul className="mt-2 grid gap-1">
@@ -349,12 +538,6 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
       </Modal>
     </div>
   )
-}
-
-function DocumentsTree({ projectId }: { projectId: string }) {
-  const documents = useQuery({ queryKey: ['documents', projectId], queryFn: () => api<DocumentListItem[]>(`/api/v1/projects/${projectId}/documents`) })
-  if (!documents.data) return null
-  return <Tree projectId={projectId} items={documents.data} parentId={null} />
 }
 
 function plain(json: string) {

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { Button } from '../../components/ui'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
@@ -13,16 +14,25 @@ export function OverviewPage() {
     queryKey: ['overview', project.id],
     queryFn: () => api<Overview>(`/api/v1/projects/${project.id}/overview`),
   })
+  const [more, setMore] = useState(false)
+  const [descriptionOpen, setDescriptionOpen] = useState(false)
   if (overview.isLoading) return <Loading />
   if (overview.isError) return <div className="p-6"><ErrorState error={overview.error} onRetry={() => void overview.refetch()} /></div>
   const data = overview.data!
   const empty = data.recent.length === 0 && data.openCount === 0 && data.sharedComponents.length === 0 && data.missingProcessCount === 0 && data.missingScreenCount === 0 && data.missingComponentCount === 0
+  const recent = more ? data.recent : data.recent.slice(0, 5)
+  const longDescription = (project.description?.length ?? 0) > 220
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-8 md:px-8">
+    <div className="grid w-full max-w-6xl gap-8 px-4 py-6 md:px-6">
       <header className="max-w-3xl">
         <p className="text-sm text-muted">Projektübersicht</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance">{project.name}</h1>
-        {project.description ? <p className="mt-2 text-sm text-muted">{project.description}</p> : null}
+        {project.description ? (
+          <div className="mt-2">
+            <p className={descriptionOpen ? 'max-w-3xl text-sm text-muted' : 'line-clamp-3 max-w-3xl text-sm text-muted'}>{project.description}</p>
+            {longDescription ? <button className="mt-1 text-sm text-accent underline-offset-2 hover:underline" type="button" onClick={() => setDescriptionOpen((value) => !value)}>{descriptionOpen ? 'Weniger anzeigen' : 'Beschreibung vollständig anzeigen'}</button> : null}
+          </div>
+        ) : null}
       </header>
       {empty ? (
         <EmptyState
@@ -32,38 +42,41 @@ export function OverviewPage() {
         />
       ) : (
         <>
-          <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(16rem,0.8fr)]">
-            <section>
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
+            <section className="rounded-xl bg-card p-4">
               <h2 className="text-lg font-semibold">Weiterarbeiten</h2>
-              <ul className="mt-3 divide-y divide-line">
-                {data.recent.map((item) => (
+              <ul className="mt-2 divide-y divide-line">
+                {recent.map((item) => (
                   <li key={`${item.type}-${item.id}`}>
-                    <Link className="grid gap-0.5 py-2.5 hover:text-accent" to={recentHref(project.id, item)}>
+                    <Link className="grid gap-0.5 py-2 hover:text-accent" to={recentHref(project.id, item)}>
                       <span className="text-xs text-muted">{searchTypeLabel(item.type)}</span>
-                      <span className="font-medium break-words">{item.title}</span>
+                      <span className="truncate font-medium">{item.title}</span>
                     </Link>
                   </li>
                 ))}
               </ul>
+              {data.recent.length > 5 ? <button className="mt-3 text-sm text-accent underline-offset-2 hover:underline" type="button" onClick={() => setMore((value) => !value)}>{more ? 'Weniger anzeigen' : `Weitere Einträge (${data.recent.length - 5})`}</button> : null}
             </section>
-            <section className="rounded-xl bg-card p-4">
-              <h2 className="font-semibold">{data.openCount} offene Anforderungen</h2>
-              <ul className="mt-2 grid gap-1">
-                {data.openRequirements.slice(0, 4).map((item) => (
-                  <RequirementLine key={item.id} projectId={project.id} item={item} />
-                ))}
-              </ul>
-              <Link className="mt-3 inline-block text-sm text-accent underline-offset-2 hover:underline" to={`/projekte/${project.id}/anforderungen?status=Offen`}>Offene Anforderungen öffnen</Link>
-            </section>
+            <div className="grid gap-4">
+              <section className="rounded-xl bg-card p-4">
+                <h2 className="font-semibold">{data.openCount} offene Anforderungen</h2>
+                <ul className="mt-2 grid gap-1">
+                  {data.openRequirements.slice(0, 4).map((item) => (
+                    <RequirementLine key={item.id} projectId={project.id} item={item} />
+                  ))}
+                </ul>
+                <Link className="mt-3 inline-block text-sm text-accent underline-offset-2 hover:underline" to={`/projekte/${project.id}/anforderungen?status=Offen`}>Offene Anforderungen öffnen</Link>
+              </section>
+              <section className="rounded-xl bg-card p-4">
+                <h2 className="font-semibold">Fehlende Zuordnungen</h2>
+                <ul className="mt-2 divide-y divide-line">
+                  <GapRow href={`/projekte/${project.id}/anforderungen?missing=process`} count={data.missingProcessCount} label="ohne Prozessschritt" />
+                  <GapRow href={`/projekte/${project.id}/anforderungen?missing=screen`} count={data.missingScreenCount} label="ohne Screen" />
+                  <GapRow href={`/projekte/${project.id}/anforderungen?missing=component`} count={data.missingComponentCount} label="ohne Komponente" />
+                </ul>
+              </section>
+            </div>
           </div>
-          <section>
-            <h2 className="text-lg font-semibold">Fehlende Zuordnungen</h2>
-            <ul className="mt-3 divide-y divide-line rounded-xl bg-card">
-              <GapRow href={`/projekte/${project.id}/anforderungen?missing=process`} count={data.missingProcessCount} label="ohne Prozessschritt" />
-              <GapRow href={`/projekte/${project.id}/anforderungen?missing=screen`} count={data.missingScreenCount} label="ohne Screen" />
-              <GapRow href={`/projekte/${project.id}/anforderungen?missing=component`} count={data.missingComponentCount} label="ohne Komponente" />
-            </ul>
-          </section>
           <section>
             <h2 className="text-lg font-semibold">Gemeinsam genutzte Komponenten</h2>
             {data.sharedComponents.length === 0 ? <p className="mt-2 text-sm text-muted">Keine Komponente wird von mehreren Prozessabläufen verwendet.</p> : (
@@ -96,7 +109,7 @@ function GapRow({ href, count, label }: { href: string; count: number; label: st
   return (
     <li>
       <h3 className="text-base font-medium">
-        <Link className="flex items-baseline justify-between gap-3 px-4 py-3 hover:text-accent" to={href}>
+        <Link className="flex items-baseline justify-between gap-3 py-2 hover:text-accent" to={href}>
           <span>{count} {label}</span>
           <span className="text-sm font-normal text-accent">Liste öffnen</span>
         </Link>
