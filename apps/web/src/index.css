@@ -37,9 +37,9 @@
   --ok: #0f6e56;
   --grid: #d7dbe6;
   --shadow: 0 12px 32px rgb(23 28 46 / 14%);
-  --motion-fast: 120ms;
-  --motion-menu: 180ms;
-  --motion-panel: 240ms;
+  --motion-fast: 160ms;
+  --motion-menu: 200ms;
+  --motion-panel: 280ms;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: light;
 }
@@ -154,6 +154,31 @@ button:not(:disabled):active {
   transform: translateY(1px);
 }
 
+button svg,
+a svg {
+  transition:
+    translate var(--motion-fast) var(--ease),
+    scale var(--motion-fast) var(--ease),
+    rotate var(--motion-fast) var(--ease);
+}
+
+button:not(.theme-toggle):not(:disabled):hover > svg,
+a:hover > svg {
+  translate: 0 -1px;
+  scale: 1.06;
+}
+
+nav[aria-label='Projekt'] a:hover > svg {
+  translate: 2px 0;
+  scale: 1;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease);
+}
+
 .workspace-tabs {
   scrollbar-width: none;
 }
@@ -166,16 +191,42 @@ button:not(:disabled):active {
   transform: none;
 }
 
+.workspace-tabs > div {
+  transition:
+    background-color var(--motion-menu) var(--ease),
+    color var(--motion-menu) var(--ease),
+    border-color var(--motion-menu) var(--ease);
+}
+
+.workspace-tabs button[aria-label='Weiteren Tab öffnen']:hover > svg,
+.workspace-tabs button[aria-label^='Tab ausblenden']:hover > svg {
+  translate: 0 0;
+  scale: 1;
+  rotate: 90deg;
+}
+
 .studio-page {
   animation: studio-page var(--motion-panel) var(--ease);
 }
 
+.studio-page.is-back {
+  animation-name: studio-page-back;
+}
+
 .studio-overlay {
-  animation: studio-fade var(--motion-menu) var(--ease);
+  animation: studio-fade-in var(--motion-menu) var(--ease);
+}
+
+.studio-overlay[data-state='closed'] {
+  animation: studio-fade-out 160ms var(--ease) forwards;
 }
 
 .studio-dialog {
-  animation: studio-pop var(--motion-menu) var(--ease);
+  animation: studio-pop-in var(--motion-menu) var(--ease);
+}
+
+.studio-dialog[data-state='closed'] {
+  animation: studio-pop-out 160ms var(--ease) forwards;
 }
 
 .studio-drawer {
@@ -183,7 +234,12 @@ button:not(:disabled):active {
 }
 
 .studio-menu {
-  animation: studio-menu var(--motion-menu) var(--ease);
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, top center);
+  animation: studio-menu-in var(--motion-menu) var(--ease);
+}
+
+.studio-menu[data-state='closed'] {
+  animation: studio-menu-out 140ms var(--ease) forwards;
 }
 
 .studio-panel {
@@ -205,29 +261,49 @@ button:not(:disabled):active {
   outline: none;
 }
 
-@keyframes studio-fade {
+@keyframes studio-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes studio-page {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
+@keyframes studio-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
-@keyframes studio-pop {
-  from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
+@keyframes studio-page {
+  from { opacity: 0; translate: 14px 8px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes studio-page-back {
+  from { opacity: 0; translate: -14px 8px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes studio-pop-in {
+  from { opacity: 0; translate: -50% calc(-50% + 12px); scale: 0.96; }
+  to { opacity: 1; translate: -50% -50%; scale: 1; }
+}
+
+@keyframes studio-pop-out {
+  from { opacity: 1; translate: -50% -50%; scale: 1; }
+  to { opacity: 0; translate: -50% calc(-50% + 8px); scale: 0.98; }
 }
 
 @keyframes studio-drawer {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; translate: -16px 0; }
+  to { opacity: 1; translate: 0 0; }
 }
 
-@keyframes studio-menu {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: none; }
+@keyframes studio-menu-in {
+  from { opacity: 0; translate: 0 -6px; scale: 0.98; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+
+@keyframes studio-menu-out {
+  from { opacity: 1; translate: 0 0; scale: 1; }
+  to { opacity: 0; translate: 0 -4px; scale: 0.98; }
 }
 
 .theme-icon {

@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Brand } from '../../components/Brand'
@@ -22,6 +21,7 @@ export function ProjectsPage({ user }: { user: User }) {
   const navigate = useNavigate()
   const projects = useQuery({ queryKey: ['projects'], queryFn: () => api<Project[]>('/api/v1/projects') })
   const [createOpen, setCreateOpen] = useState(false)
+  const [mode, setMode] = useState<'create' | 'import'>('create')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [query, setQuery] = useState('')
@@ -70,42 +70,52 @@ export function ProjectsPage({ user }: { user: User }) {
   return (
     <main className="grid w-full gap-5 px-4 py-6 md:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-4">
+        <div className="flex min-w-0 items-center gap-3">
           <Brand to="/projekte" />
+          <span className="hidden h-9 w-px bg-line sm:block" aria-hidden="true" />
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">Projekte</h1>
-            <p className="truncate text-sm text-muted">Angemeldet als {user.displayName}</p>
+            <h1 className="text-base font-semibold leading-none tracking-tight">Projekte</h1>
+            <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+              <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-accent/15 text-[9px] font-semibold text-accent" aria-hidden="true">{projectMark(user.displayName)}</span>
+              <span className="truncate">Angemeldet als <span className="font-medium text-foreground">{user.displayName}</span></span>
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="primary" onClick={() => { setName(''); setDescription(''); setCreateOpen(true) }}>Projekt anlegen</Button>
+          <Button type="button" variant="primary" onClick={() => { setName(''); setDescription(''); setMode('create'); setCreateOpen(true) }}>Projekt anlegen</Button>
           <Button size="sm" type="button" onClick={() => logout.mutate()}>Abmelden</Button>
         </div>
       </header>
 
-      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Neues Projekt" description="Name und Beschreibung reichen für den Start.">
-        <form
-          className="grid gap-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            create.mutate()
-          }}
-        >
-          <Field label="Name">
-            <Input required autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field label="Beschreibung">
-            <Input value={description} onChange={(event) => setDescription(event.target.value)} />
-          </Field>
-          {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
-          <div className="flex justify-end gap-2">
-            <Button type="button" onClick={() => setCreateOpen(false)}>Abbrechen</Button>
-            <Button type="submit" variant="primary" disabled={create.isPending}>Projekt anlegen</Button>
-          </div>
-        </form>
+      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Neues Projekt" description={mode === 'create' ? 'Name und Beschreibung reichen für den Start.' : 'Der Import legt ein neues Projekt an. Du wirst Eigentümerin oder Eigentümer.'}>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-background p-1" role="group" aria-label="Art des Projekts">
+          <button className={cn('rounded-md px-3 py-1.5 text-sm', mode === 'create' ? 'bg-card font-medium shadow-sm' : 'text-muted hover:text-foreground')} type="button" aria-pressed={mode === 'create'} onClick={() => setMode('create')}>Neu anlegen</button>
+          <button className={cn('rounded-md px-3 py-1.5 text-sm', mode === 'import' ? 'bg-card font-medium shadow-sm' : 'text-muted hover:text-foreground')} type="button" aria-pressed={mode === 'import'} onClick={() => setMode('import')}>Projekt importieren</button>
+        </div>
+        {mode === 'create' ? (
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              create.mutate()
+            }}
+          >
+            <Field label="Name">
+              <Input required autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} />
+            </Field>
+            <Field label="Beschreibung">
+              <Input value={description} onChange={(event) => setDescription(event.target.value)} />
+            </Field>
+            {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" onClick={() => setCreateOpen(false)}>Abbrechen</Button>
+              <Button type="submit" variant="primary" disabled={create.isPending}>Projekt anlegen</Button>
+            </div>
+          </form>
+        ) : (
+          <ImportProject onImported={(id) => void navigate(`/projekte/${id}`)} onCancel={() => setCreateOpen(false)} />
+        )}
       </Modal>
-
-      <ImportProject onImported={(id) => void navigate(`/projekte/${id}`)} />
 
       <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center gap-2 border-b border-line bg-background/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
         <Input
@@ -201,7 +211,7 @@ function ProjectRow({ project }: { project: Project }) {
   )
 }
 
-function ImportProject({ onImported }: { onImported: (id: string) => void }) {
+function ImportProject({ onImported, onCancel }: { onImported: (id: string) => void; onCancel: () => void }) {
   const client = useQueryClient()
   const [preview, setPreview] = useState<TransferPreview | null>(null)
   const [file, setFile] = useState<unknown>(null)
@@ -214,14 +224,9 @@ function ImportProject({ onImported }: { onImported: (id: string) => void }) {
     },
   })
   return (
-    <details className="group rounded-xl border border-line bg-card px-4 py-3">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        Projekt importieren
-        <ChevronDown size={16} className="text-muted transition-transform group-open:rotate-180" />
-      </summary>
-      <p className="mt-2 text-sm text-muted">Der Import legt ein neues Projekt an. Du wirst Eigentümerin oder Eigentümer.</p>
+    <div className="grid gap-3">
       <input
-        className="mt-3 block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-2 file:text-sm file:font-medium"
+        className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-2 file:text-sm file:font-medium"
         type="file"
         accept="application/json,.json"
         aria-label="Projektdatei"
@@ -242,16 +247,19 @@ function ImportProject({ onImported }: { onImported: (id: string) => void }) {
           })
         }}
       />
-      {message ? <p role="alert" className="mt-2 text-sm text-danger">{message}</p> : null}
+      {message ? <p role="alert" className="text-sm text-danger">{message}</p> : null}
       {preview ? (
-        <div className="mt-3 grid gap-2 text-sm">
+        <div className="grid gap-2 text-sm">
           <p>{preview.summary.requirements} Anforderungen, {preview.summary.diagrams} Diagramme, {preview.summary.documents} Dokumente, {preview.summary.packages} Änderungspakete, {preview.summary.snapshots} Stände.</p>
           {preview.errors.length ? <ul className="text-danger">{preview.errors.map((error) => <li key={error}>{error}</li>)}</ul> : null}
-          {preview.valid ? <Button type="button" variant="primary" disabled={confirm.isPending} onClick={() => confirm.mutate()}>Importieren</Button> : null}
           {confirm.isError ? <p role="alert" className="text-danger">{errorText(confirm.error)}</p> : null}
         </div>
       ) : null}
-    </details>
+      <div className="flex justify-end gap-2">
+        <Button type="button" onClick={onCancel}>Abbrechen</Button>
+        {preview?.valid ? <Button type="button" variant="primary" disabled={confirm.isPending} onClick={() => confirm.mutate()}>Importieren</Button> : null}
+      </div>
+    </div>
   )
 }
 

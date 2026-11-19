@@ -171,7 +171,7 @@ export function Shell({ user }: { user: User }) {
           </div>
         ) : null}
         <main id="inhalt" className="min-h-0 min-w-0 flex-1 overflow-auto">
-          <div key={location.pathname} className="studio-page h-full min-h-full">
+          <div key={location.pathname} className={`studio-page h-full min-h-full${tabs.pageMotion === 'back' ? ' is-back' : ''}`}>
             <Outlet context={{ project: current, canWrite, canManage, user } satisfies ProjectOutlet} />
           </div>
         </main>
@@ -201,9 +201,18 @@ function ThemeButton() {
       type="button"
       aria-label="Darstellung"
       onClick={() => {
-        const next = document.documentElement.classList.toggle('dark')
-        localStorage.setItem('studio-theme', next ? 'dark' : 'light')
-        setDark(next)
+        const apply = () => {
+          const next = document.documentElement.classList.toggle('dark')
+          localStorage.setItem('studio-theme', next ? 'dark' : 'light')
+          setDark(next)
+        }
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        const start = (document as Document & { startViewTransition?: (callback: () => void) => void }).startViewTransition?.bind(document)
+        if (reduce || !start) {
+          apply()
+          return
+        }
+        start(apply)
       }}
     >
       {dark ? <DarkThemeIcon /> : <LightThemeIcon />}
@@ -355,7 +364,7 @@ function NavFold({ id, label, count, children }: { id: string; label: string; co
         <span className="min-w-0 truncate">{label}</span>
         <span className="ml-auto flex items-center gap-1">
           {count ? <span className="tabular-nums">{count}</span> : null}
-          <ChevronDown size={14} className={open ? 'rotate-180' : ''} aria-hidden="true" />
+          <ChevronDown size={14} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
         </span>
       </button>
       {open ? <div className="mt-1 grid gap-0.5 pl-2">{children}</div> : null}
@@ -467,6 +476,7 @@ function WorkspaceTabs({ tabs, activeId, onSelect, onClose, onNew }: { tabs: Wor
 function useWorkspaceTabs(projectId: string, href: string, label: string) {
   const navigate = useNavigate()
   const boot = useRef<WorkspaceTab[] | null>(null)
+  const pageMotion = useRef<'forward' | 'back'>('forward')
   if (boot.current === null) boot.current = initialTabs(projectId, href, label)
   const [tabs, setTabs] = useState(boot.current)
   const [activeId, setActiveId] = useState((boot.current.find((tab) => tab.href === href) ?? boot.current[0]).id)
@@ -494,9 +504,16 @@ function useWorkspaceTabs(projectId: string, href: string, label: string) {
   }, [projectId, tabs])
 
   function select(tab: WorkspaceTab) {
+    const from = tabs.findIndex((item) => item.id === activeId)
+    const to = tabs.findIndex((item) => item.id === tab.id)
+    pageMotion.current = to < from ? 'back' : 'forward'
     setActiveId(tab.id)
     void navigate(tab.href)
   }
+
+  useEffect(() => {
+    pageMotion.current = 'forward'
+  }, [href])
 
   function openNew(nextHref: string) {
     const existing = tabs.find((tab) => tab.href === nextHref)
@@ -505,6 +522,7 @@ function useWorkspaceTabs(projectId: string, href: string, label: string) {
       return
     }
     const created = { id: crypto.randomUUID(), href: nextHref, label: 'Neuer Tab' }
+    pageMotion.current = 'forward'
     setActiveId(created.id)
     setTabs((current) => [...current, created])
     void navigate(nextHref)
@@ -521,13 +539,14 @@ function useWorkspaceTabs(projectId: string, href: string, label: string) {
     }
     if (activeId === id) {
       const fallback = remaining[remaining.length - 1]
+      pageMotion.current = 'back'
       setActiveId(fallback.id)
       void navigate(fallback.href)
     }
     setTabs(remaining)
   }
 
-  return { tabs, activeId, select, openNew, close }
+  return { tabs, activeId, select, openNew, close, pageMotion: pageMotion.current }
 }
 
 function initialTabs(projectId: string, href: string, label: string) {
