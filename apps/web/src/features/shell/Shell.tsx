@@ -106,7 +106,6 @@ export function Shell({ user }: { user: User }) {
   const current = project.data
   const canWrite = !current.isArchived && (current.role === 'Owner' || current.role === 'Editor')
   const canManage = !current.isArchived && current.role === 'Owner'
-  const crumbs = breadcrumb(location.pathname, current.name, diagram.data, areas.data?.find((item) => item.id === areaId)?.name)
 
   return (
     <div
@@ -139,14 +138,7 @@ export function Shell({ user }: { user: User }) {
           <div className="lg:hidden">
             <ProjectSwitch projects={projects.data ?? [current]} current={current} onChange={(id) => void navigate(`/projekte/${id}`)} compact />
           </div>
-          <nav aria-label="Brotkrumen" className="hidden min-w-0 flex-1 truncate text-sm text-muted md:block">
-            {crumbs.map((crumb, index) => (
-              <span key={crumb.href}>
-                {index > 0 ? ' / ' : ''}
-                <Link className="underline-offset-2 hover:underline" to={crumb.href}>{crumb.label}</Link>
-              </span>
-            ))}
-          </nav>
+          <WorkspaceTabs tabs={tabs.tabs} activeId={tabs.activeId} onSelect={tabs.select} onClose={tabs.close} onNew={() => tabs.openNew(`/projekte/${current.id}`)} />
           <SearchBox projectId={current.id} onOpenPalette={(opener) => { paletteReturn.current = opener; setPaletteOpen(true) }} />
           {people.length > 0 ? (
             <div className="flex items-center gap-1" aria-label="Weitere Personen">
@@ -163,7 +155,6 @@ export function Shell({ user }: { user: User }) {
             <MenuItem onSelect={() => logout.mutate()}>Abmelden</MenuItem>
           </Menu>
         </header>
-        <WorkspaceTabs tabs={tabs.tabs} activeId={tabs.activeId} onSelect={tabs.select} onClose={tabs.close} onNew={() => tabs.openNew(`/projekte/${current.id}`)} />
         {current.isArchived ? <p className="bg-warning/15 px-4 py-2 text-sm">Dieses Projekt ist archiviert und kann nur gelesen werden.</p> : null}
         {samePage.length > 0 ? <p className="bg-warning/15 px-4 py-2 text-sm">{togetherNames(samePage.map((person) => person.name))} diese Seite ebenfalls. Ungespeicherte Änderungen bleiben bei dir.</p> : null}
         {navOpen ? (
@@ -282,7 +273,6 @@ function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pa
   })
   return (
     <nav className="grid min-h-0 flex-1 content-start gap-1 overflow-auto px-3 pb-3" aria-label="Projekt">
-      <p className="px-2 pb-1 text-xs font-medium text-muted">Module</p>
       {nav.map(([label, segment, Icon]) => (
         <NavLink
           key={label}
@@ -453,17 +443,17 @@ type WorkspaceTab = { id: string; href: string; label: string }
 
 function WorkspaceTabs({ tabs, activeId, onSelect, onClose, onNew }: { tabs: WorkspaceTab[]; activeId: string; onSelect: (tab: WorkspaceTab) => void; onClose: (id: string) => void; onNew: () => void }) {
   return (
-    <div className="flex h-10 shrink-0 items-end gap-1 overflow-x-auto border-b border-line bg-nav px-2" role="tablist" aria-label="Offene Tabs">
+    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Offene Tabs">
       {tabs.map((tab) => {
         const active = tab.id === activeId
         return (
-          <div key={tab.id} className={`flex max-w-56 shrink-0 items-center rounded-t-md border border-b-0 ${active ? 'border-line bg-background text-foreground' : 'border-transparent text-muted hover:bg-card'}`}>
-            <button className="min-w-0 truncate px-3 py-1.5 text-left text-sm" type="button" role="tab" aria-selected={active} onClick={() => onSelect(tab)}>{tab.label}</button>
-            <button className="mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-md text-xs hover:bg-background" type="button" aria-label={`Tab ausblenden: ${tab.label}`} onClick={() => onClose(tab.id)}>×</button>
+          <div key={tab.id} className={`flex max-w-48 shrink-0 items-center rounded-md ${active ? 'bg-background text-foreground ring-1 ring-line' : 'text-muted hover:bg-card'}`}>
+            <button className="min-w-0 truncate px-2.5 py-1 text-left text-sm" type="button" role="tab" aria-selected={active} onClick={() => onSelect(tab)}>{tab.label}</button>
+            <button className="mr-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md text-xs hover:bg-card" type="button" aria-label={`Tab ausblenden: ${tab.label}`} onClick={() => onClose(tab.id)}>×</button>
           </div>
         )
       })}
-      <button className="mb-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-card hover:text-foreground" type="button" aria-label="Weiteren Tab öffnen" onClick={onNew}>+</button>
+      <button className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-card hover:text-foreground" type="button" aria-label="Weiteren Tab öffnen" onClick={onNew}>+</button>
     </div>
   )
 }
