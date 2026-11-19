@@ -24,7 +24,7 @@ import {
 import { forwardRef, useDeferredValue, useEffect, useRef, useState, type ButtonHTMLAttributes, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router'
 import { Brand } from '../../components/Brand'
-import { Button, Hint, Input, Menu, MenuItem, Select } from '../../components/ui'
+import { Button, Hint, Input, Menu, MenuItem, Select, usePresence } from '../../components/ui'
 import { ErrorState, Loading } from '../../components/states'
 import { childAreas, rootAreas } from '../../lib/areas'
 import { api } from '../../lib/api'
@@ -57,6 +57,7 @@ export type ProjectOutlet = { project: Project; canWrite: boolean; canManage: bo
 export function Shell({ user }: { user: User }) {
   const { projectId } = useParams()
   const [navOpen, setNavOpen] = useState(false)
+  const navPresence = usePresence(navOpen)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const paletteReturn = useRef<HTMLElement | null>(null)
   const projects = useQuery({ queryKey: ['projects'], queryFn: () => api<Project[]>('/api/v1/projects') })
@@ -159,10 +160,10 @@ export function Shell({ user }: { user: User }) {
         </header>
         {current.isArchived ? <p className="bg-warning/15 px-4 py-2 text-sm">Dieses Projekt ist archiviert und kann nur gelesen werden.</p> : null}
         {samePage.length > 0 ? <p className="bg-warning/15 px-4 py-2 text-sm">{togetherNames(samePage.map((person) => person.name))} diese Seite ebenfalls. Ungespeicherte Änderungen bleiben bei dir.</p> : null}
-        {navOpen ? (
+        {navPresence.present ? (
           <div className="fixed inset-0 z-40 lg:hidden">
-            <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Navigation schließen" onClick={() => setNavOpen(false)} />
-            <aside className="studio-drawer absolute inset-y-0 left-0 flex w-72 flex-col bg-nav p-3 shadow-overlay">
+            <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Navigation schließen" data-state={navPresence.state} onClick={() => setNavOpen(false)} />
+            <aside className="studio-drawer absolute inset-y-0 left-0 flex w-72 flex-col bg-nav p-3 shadow-overlay" data-state={navPresence.state}>
               <div className="px-2 pb-3 pt-1" onClick={() => setNavOpen(false)}>
                 <Brand to="/projekte" />
               </div>

@@ -308,7 +308,7 @@ export function PackageDetailPage() {
         <Dialog.Portal>
           <Dialog.Overlay className="studio-overlay fixed inset-0 z-40 bg-black/40" />
           <Dialog.Content
-            className="studio-drawer fixed inset-y-0 right-0 z-50 w-[min(32rem,100%)] overflow-auto border-l border-line bg-card p-4 shadow-overlay"
+            className="studio-drawer studio-drawer-end fixed inset-y-0 right-0 z-50 w-[min(32rem,100%)] overflow-auto border-l border-line bg-card p-4 shadow-overlay"
             aria-describedby={undefined}
             onCloseAutoFocus={(event) => { event.preventDefault(); impactOpener.current?.focus() }}
           >

@@ -41,6 +41,8 @@
   --motion-menu: 200ms;
   --motion-panel: 280ms;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
   color-scheme: light;
 }
 
@@ -206,40 +208,68 @@ nav[aria-label='Projekt'] a:hover > svg {
 }
 
 .studio-page {
-  animation: studio-page var(--motion-panel) var(--ease);
+  animation: studio-page 240ms var(--ease-out) both;
 }
 
 .studio-page.is-back {
   animation-name: studio-page-back;
 }
 
-.studio-overlay {
-  animation: studio-fade-in var(--motion-menu) var(--ease);
+.studio-overlay:not([data-state='closed']) {
+  animation: studio-fade-in 200ms var(--ease-out) both;
 }
 
 .studio-overlay[data-state='closed'] {
-  animation: studio-fade-out 160ms var(--ease) forwards;
+  animation: studio-fade-out 180ms var(--ease-in) both;
+  pointer-events: none;
 }
 
-.studio-dialog {
-  animation: studio-pop-in var(--motion-menu) var(--ease);
+.studio-dialog:not([data-state='closed']) {
+  animation: studio-pop-in 260ms var(--ease-out) both;
 }
 
 .studio-dialog[data-state='closed'] {
-  animation: studio-pop-out 160ms var(--ease) forwards;
+  animation: studio-pop-out 180ms var(--ease-in) both;
+  pointer-events: none;
 }
 
-.studio-drawer {
-  animation: studio-drawer var(--motion-panel) var(--ease);
+.studio-drawer:not([data-state='closed']) {
+  animation: studio-drawer-in 260ms var(--ease-out) both;
+}
+
+.studio-drawer[data-state='closed'] {
+  animation: studio-drawer-out 180ms var(--ease-in) both;
+  pointer-events: none;
+}
+
+.studio-drawer-end:not([data-state='closed']) {
+  animation-name: studio-drawer-end-in;
+}
+
+.studio-drawer-end[data-state='closed'] {
+  animation-name: studio-drawer-end-out;
+}
+
+.studio-sheet:not([data-state='closed']) {
+  animation: studio-sheet-in 260ms var(--ease-out) both;
+}
+
+.studio-sheet[data-state='closed'] {
+  animation: studio-sheet-out 180ms var(--ease-in) both;
+  pointer-events: none;
 }
 
 .studio-menu {
   transform-origin: var(--radix-dropdown-menu-content-transform-origin, top center);
-  animation: studio-menu-in var(--motion-menu) var(--ease);
+}
+
+.studio-menu:not([data-state='closed']) {
+  animation: studio-menu-in 180ms var(--ease-out) both;
 }
 
 .studio-menu[data-state='closed'] {
-  animation: studio-menu-out 140ms var(--ease) forwards;
+  animation: studio-menu-out 140ms var(--ease-in) both;
+  pointer-events: none;
 }
 
 .studio-panel {
@@ -272,17 +302,17 @@ nav[aria-label='Projekt'] a:hover > svg {
 }
 
 @keyframes studio-page {
-  from { opacity: 0; translate: 14px 8px; }
+  from { opacity: 0; translate: 0 8px; }
   to { opacity: 1; translate: 0 0; }
 }
 
 @keyframes studio-page-back {
-  from { opacity: 0; translate: -14px 8px; }
+  from { opacity: 0; translate: 0 8px; }
   to { opacity: 1; translate: 0 0; }
 }
 
 @keyframes studio-pop-in {
-  from { opacity: 0; translate: -50% calc(-50% + 12px); scale: 0.96; }
+  from { opacity: 0; translate: -50% calc(-50% + 14px); scale: 0.96; }
   to { opacity: 1; translate: -50% -50%; scale: 1; }
 }
 
@@ -291,19 +321,44 @@ nav[aria-label='Projekt'] a:hover > svg {
   to { opacity: 0; translate: -50% calc(-50% + 8px); scale: 0.98; }
 }
 
-@keyframes studio-drawer {
-  from { opacity: 0; translate: -16px 0; }
+@keyframes studio-drawer-in {
+  from { opacity: 0; translate: -24px 0; }
   to { opacity: 1; translate: 0 0; }
 }
 
+@keyframes studio-drawer-out {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: -18px 0; }
+}
+
+@keyframes studio-drawer-end-in {
+  from { opacity: 0; translate: 24px 0; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes studio-drawer-end-out {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 18px 0; }
+}
+
+@keyframes studio-sheet-in {
+  from { opacity: 0; translate: -50% 12px; scale: 0.98; }
+  to { opacity: 1; translate: -50% 0; scale: 1; }
+}
+
+@keyframes studio-sheet-out {
+  from { opacity: 1; translate: -50% 0; scale: 1; }
+  to { opacity: 0; translate: -50% 8px; scale: 0.98; }
+}
+
 @keyframes studio-menu-in {
-  from { opacity: 0; translate: 0 -6px; scale: 0.98; }
+  from { opacity: 0; translate: 0 -8px; scale: 0.97; }
   to { opacity: 1; translate: 0 0; scale: 1; }
 }
 
 @keyframes studio-menu-out {
   from { opacity: 1; translate: 0 0; scale: 1; }
-  to { opacity: 0; translate: 0 -4px; scale: 0.98; }
+  to { opacity: 0; translate: 0 -6px; scale: 0.98; }
 }
 
 .theme-icon {

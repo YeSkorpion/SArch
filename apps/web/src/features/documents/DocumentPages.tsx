@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
 import { ConflictBanner, EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
-import { Badge, Button, Field, Input, Menu, MenuItem, Modal, Select } from '../../components/ui'
+import { Badge, Button, Field, Input, Menu, MenuItem, Modal, Select, usePresence } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
 import { artifactHref, createsCycle, documentStatusLabel } from '../../lib/labels'
@@ -122,6 +122,7 @@ function DocFrame({ projectId, canWrite, activeId, items, children }: { projectI
   const list = items ?? documents.data ?? []
   const reader = useRef<HTMLDivElement>(null)
   const [drawer, setDrawer] = useState(false)
+  const drawerPresence = usePresence(drawer)
   const drawerButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     reader.current?.scrollTo(0, 0)
@@ -137,10 +138,10 @@ function DocFrame({ projectId, canWrite, activeId, items, children }: { projectI
         </div>
         {children}
       </div>
-      {drawer ? (
+      {drawerPresence.present ? (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Seitenstruktur ausblenden" onClick={() => { setDrawer(false); drawerButton.current?.focus() }} />
-          <aside className="studio-drawer absolute inset-y-0 left-0 flex w-[min(20rem,100%)] flex-col bg-nav shadow-overlay" aria-label="Seitenstruktur">
+          <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Seitenstruktur ausblenden" data-state={drawerPresence.state} onClick={() => { setDrawer(false); drawerButton.current?.focus() }} />
+          <aside className="studio-drawer absolute inset-y-0 left-0 flex w-[min(20rem,100%)] flex-col bg-nav shadow-overlay" aria-label="Seitenstruktur" data-state={drawerPresence.state}>
             <div className="flex items-center justify-between px-3 pt-3">
               <p className="text-sm font-semibold">Seitenstruktur</p>
               <button className="rounded-md px-2 py-1 text-sm" type="button" onClick={() => { setDrawer(false); drawerButton.current?.focus() }}>Schließen</button>

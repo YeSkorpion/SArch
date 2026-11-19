@@ -5,9 +5,25 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown } from 'lucide-react'
-import { Children, isValidElement, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ChangeEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { Children, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ChangeEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '../lib/cn'
+
+const presenceMs = 180
+
+export function usePresence(open: boolean) {
+  const [present, setPresent] = useState(open)
+  useEffect(() => {
+    if (open) {
+      setPresent(true)
+      return
+    }
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const timer = window.setTimeout(() => setPresent(false), reduce ? 0 : presenceMs)
+    return () => window.clearTimeout(timer)
+  }, [open])
+  return { present, state: open ? 'open' as const : 'closed' as const }
+}
 
 export function StudioProvider({ children }: { children: ReactNode }) {
   return <Tooltip.Provider delayDuration={400}>{children}</Tooltip.Provider>
@@ -111,6 +127,7 @@ export function Select({ className, children, value, disabled, onChange, onKeyDo
   const typed = useRef('')
   const typedAt = useRef(0)
   const [open, setOpen] = useState(false)
+  const menuPresence = usePresence(open)
   const [cursor, setCursor] = useState(0)
   const [portal, setPortal] = useState<HTMLElement | null>(null)
   const [place, setPlace] = useState<MenuPlace | null>(null)
@@ -281,11 +298,12 @@ export function Select({ className, children, value, disabled, onChange, onKeyDo
         <span className="min-w-0 flex-1 truncate">{selected?.label ?? ''}</span>
         <ChevronDown className={cn('size-4 shrink-0 text-muted transition-transform', open && 'rotate-180')} />
       </button>
-      {open && place && portal ? createPortal(
+      {menuPresence.present && place && portal ? createPortal(
         <div
           ref={menuRef}
           id={listId}
           role="listbox"
+          data-state={menuPresence.state}
           className="studio-menu z-[80] overflow-auto rounded-lg border border-line bg-card p-1 text-foreground shadow-overlay"
           style={{
             position: place.fixed ? 'fixed' : 'absolute',

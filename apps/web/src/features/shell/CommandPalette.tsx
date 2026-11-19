@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
+import { usePresence } from '../../components/ui'
 import { api } from '../../lib/api'
 import { artifactHref, searchHitMeta, searchTypeLabel } from '../../lib/labels'
 import type { SearchHit } from '../../lib/types'
@@ -9,6 +10,7 @@ const order = ['requirement', 'process', 'node', 'screen', 'component', 'system'
 
 export function CommandPalette({ projectId, projectName, open, onOpenChange, returnFocus }: { projectId: string; projectName: string; open: boolean; onOpenChange: (open: boolean) => void; returnFocus: RefObject<HTMLElement | null> }) {
   const navigate = useNavigate()
+  const presence = usePresence(open)
   const [term, setTerm] = useState('')
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
@@ -59,16 +61,17 @@ export function CommandPalette({ projectId, projectName, open, onOpenChange, ret
     void navigate(artifactHref(projectId, hit.type, hit.id, hit.diagramId))
   }
 
-  if (!open) return null
+  if (!presence.present) return null
 
   return (
     <div className="fixed inset-0 z-50">
-      <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Schnellsuche schließen" onClick={close} />
+      <button className="studio-overlay absolute inset-0 bg-black/40" type="button" aria-label="Schnellsuche schließen" data-state={presence.state} onClick={close} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Schnellsuche"
-        className="studio-overlay absolute left-1/2 top-[12vh] grid w-[min(36rem,calc(100%-1.5rem))] -translate-x-1/2 gap-3 rounded-xl border border-line bg-card p-3 shadow-overlay"
+        data-state={presence.state}
+        className="studio-sheet absolute left-1/2 top-[12vh] grid w-[min(36rem,calc(100%-1.5rem))] -translate-x-1/2 gap-3 rounded-xl border border-line bg-card p-3 shadow-overlay"
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault()
