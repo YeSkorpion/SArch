@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Button, Field, Input, Select } from '../../components/ui'
+import { Button, Field, Input, Modal, Select } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import type { ArtifactSource, SourceKind } from '../../lib/types'
 
@@ -22,10 +22,11 @@ export function SourcesPanel({ projectId, artifactId, canWrite }: { projectId: s
   const [title, setTitle] = useState('')
   const [target, setTarget] = useState('')
   const [reference, setReference] = useState('')
+  const [open, setOpen] = useState(false)
   const refresh = () => client.invalidateQueries({ queryKey: ['sources', projectId, artifactId] })
   const create = useMutation({
     mutationFn: () => api<ArtifactSource>(`/api/v1/projects/${projectId}/artifacts/${artifactId}/sources`, { method: 'POST', body: { kind, title, target } }),
-    onSuccess: () => { setTitle(''); setTarget(''); void refresh() },
+    onSuccess: () => { setTitle(''); setTarget(''); setOpen(false); void refresh() },
   })
   const check = useMutation({
     mutationFn: (id: string) => api(`/api/v1/projects/${projectId}/sources/${id}/check`, { method: 'POST', body: { reference } }),
@@ -42,10 +43,13 @@ export function SourcesPanel({ projectId, artifactId, canWrite }: { projectId: s
   const pending = sources.data?.some((item) => item.state !== 'Geprueft')
   return (
     <section className="grid gap-3">
-      <div>
-        <h2 className="font-semibold">Quellen und Aktualität</h2>
-        <p className="text-sm text-muted">Die Prüfung gilt für die hier hinterlegte Zuordnung. Ein geändertes Ziel muss erneut geprüft werden.</p>
-        {sources.data && sources.data.length > 0 ? <p className="mt-1 text-sm">{pending ? 'Mindestens eine Quelle ist ungeprüft oder wurde seit der Prüfung geändert.' : 'Alle Quellen sind geprüft.'}</p> : null}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Quellen und Aktualität</h2>
+          <p className="text-sm text-muted">Die Prüfung gilt für die hier hinterlegte Zuordnung. Ein geändertes Ziel muss erneut geprüft werden.</p>
+          {sources.data && sources.data.length > 0 ? <p className="mt-1 text-sm">{pending ? 'Mindestens eine Quelle ist ungeprüft oder wurde seit der Prüfung geändert.' : 'Alle Quellen sind geprüft.'}</p> : null}
+        </div>
+        {canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Quelle hinzufügen</Button> : null}
       </div>
       {sources.isLoading ? <p className="text-sm text-muted">Wird geladen …</p> : null}
       {sources.isError ? <p role="alert" className="text-sm text-danger">{errorText(sources.error)}</p> : null}
@@ -67,8 +71,8 @@ export function SourcesPanel({ projectId, artifactId, canWrite }: { projectId: s
         ))}
       </ul>
       {sources.data?.length === 0 ? <p className="text-sm text-muted">Noch keine Quelle.</p> : null}
-      {canWrite ? (
-        <form className="grid gap-2 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
+      <Modal open={open} onOpenChange={setOpen} title="Quelle hinzufügen" description="Art, Titel und Ziel reichen. Die Referenz gilt für die nächste Prüfung.">
+        <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <Field label="Art">
             <Select aria-label="Quellenart" value={kind} onChange={(event) => setKind(event.target.value as SourceKind)}>
               {kinds.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -77,10 +81,14 @@ export function SourcesPanel({ projectId, artifactId, canWrite }: { projectId: s
           <Field label="Titel"><Input aria-label="Quellentitel" value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
           <Field label="Ziel"><Input aria-label="Quellenziel" placeholder="https://… oder src/…" value={target} onChange={(event) => setTarget(event.target.value)} /></Field>
           <Field label="Referenz für die nächste Prüfung"><Input aria-label="Prüfreferenz" placeholder="Commit oder Version" value={reference} onChange={(event) => setReference(event.target.value)} /></Field>
-          <Button className="sm:col-span-2 justify-self-start" type="submit" disabled={create.isPending || title.trim().length === 0 || target.trim().length === 0}>Quelle hinzufügen</Button>
+          {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => setOpen(false)}>Abbrechen</Button>
+            <Button type="submit" variant="primary" disabled={create.isPending || title.trim().length === 0 || target.trim().length === 0}>Quelle hinzufügen</Button>
+          </div>
         </form>
-      ) : null}
-      {create.isError || check.isError || update.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error ?? check.error ?? update.error)}</p> : null}
+      </Modal>
+      {check.isError || update.isError ? <p role="alert" className="text-sm text-danger">{errorText(check.error ?? update.error)}</p> : null}
     </section>
   )
 }

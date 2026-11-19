@@ -1100,40 +1100,46 @@ export function ComponentDetailPage() {
   })
   if (query.isLoading || !draft) return <Loading />
   if (query.isError) return <div className="p-6"><ErrorState error={query.error} onRetry={() => void query.refetch()} /></div>
+  const placements = `${draft.placementCount} ${draft.placementCount === 1 ? 'Platzierung' : 'Platzierungen'}`
   return (
-    <div className="grid w-full items-start gap-6 px-4 py-6 md:px-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
-      <form className="grid content-start gap-4" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-3xl font-semibold tracking-tight">
-              <span className="mb-1 block text-sm font-normal text-muted">Komponente</span>
-              {draft.name}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Badge tone="accent">{componentKindLabel(draft.kind)}</Badge>
-              {draft.technology ? <span className="text-sm text-muted">{draft.technology}</span> : null}
+    <div className="grid w-full items-start gap-6 px-4 py-6 md:px-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid min-w-0 content-start gap-4">
+        <form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
+          <header className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">
+                <span className="mb-1 block text-sm font-normal text-muted">Komponente</span>
+                {draft.name}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge tone="accent">{componentKindLabel(draft.kind)}</Badge>
+                {draft.technology ? <span className="text-sm text-muted">{draft.technology}</span> : null}
+                <span className="text-sm text-muted">{placements}</span>
+              </div>
             </div>
-          </div>
-          {canWrite ? <Button type="submit" variant="primary">Speichern</Button> : null}
-        </header>
-        <section className="grid gap-4 rounded-xl border border-line bg-card p-4 md:p-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Name"><Input value={draft.name} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
-            <Field label="Art">
-              <Select aria-label="Art" value={draft.kind} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, kind: event.target.value as Component['kind'] })}>
-                <option value="Client">Client</option>
-                <option value="Api">API</option>
-                <option value="Service">Service</option>
-                <option value="Database">Datenbank</option>
-                <option value="Queue">Queue</option>
-                <option value="External">Externes System</option>
-              </Select>
-            </Field>
-          </div>
-          <Field label="Technologie"><Input value={draft.technology ?? ''} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, technology: event.target.value })} /></Field>
-          <Field label="Beschreibung"><Textarea value={draft.description} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></Field>
-        </section>
-        <p className="text-sm text-muted">{draft.placementCount} Platzierungen. Eine Umbenennung gilt für alle Diagramme. Das Entfernen einer Platzierung löscht die Komponente nicht.</p>
+            {canWrite ? <Button type="submit" variant="primary">Speichern</Button> : null}
+          </header>
+          <section className="grid gap-4 rounded-xl border border-line bg-card p-4 md:p-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Name"><Input value={draft.name} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
+              <Field label="Art">
+                <Select aria-label="Art" value={draft.kind} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, kind: event.target.value as Component['kind'] })}>
+                  <option value="Client">Client</option>
+                  <option value="Api">API</option>
+                  <option value="Service">Service</option>
+                  <option value="Database">Datenbank</option>
+                  <option value="Queue">Queue</option>
+                  <option value="External">Externes System</option>
+                </Select>
+              </Field>
+              <Field label="Technologie"><Input value={draft.technology ?? ''} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, technology: event.target.value })} /></Field>
+            </div>
+            <Field label="Beschreibung"><Textarea className="min-h-20" value={draft.description} disabled={!canWrite} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></Field>
+            <p className="text-sm text-muted">{draft.placementCount} Platzierungen. Eine Umbenennung gilt für alle Diagramme. Das Entfernen einer Platzierung löscht die Komponente nicht.</p>
+          </section>
+          {save.isError ? <p role="alert" className="text-sm text-danger">{errorText(save.error)}</p> : null}
+        </form>
+        <ComponentSchema projectId={project.id} componentId={componentId} kind={draft.kind} canWrite={canWrite} />
         <section className="grid gap-3 rounded-xl border border-line bg-card p-4 md:p-5">
           <h2 className="font-semibold">Auswirkung auf Abläufe</h2>
           {effects.isLoading ? <p className="text-sm text-muted">Wird geladen …</p> : null}
@@ -1150,10 +1156,18 @@ export function ComponentDetailPage() {
             ))}
           </ul>
         </section>
-        {save.isError || remove.isError ? <p role="alert" className="text-sm text-danger">{errorText(save.error ?? remove.error)}</p> : null}
-        {canWrite ? <div><Button type="button" variant="danger" onClick={() => remove.mutate()}>Komponente löschen</Button></div> : null}
-      </form>
-      <aside className="grid content-start gap-4">
+        <section className="rounded-xl border border-line bg-card p-4 md:p-5">
+          <SourcesPanel projectId={project.id} artifactId={componentId} canWrite={canWrite} />
+        </section>
+        {canWrite ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-4 py-3">
+            <p className="text-sm text-muted">Löschen entfernt die Komponente aus allen Diagrammen.</p>
+            <Button type="button" variant="danger" disabled={remove.isPending} onClick={() => remove.mutate()}>Komponente löschen</Button>
+            {remove.isError ? <p role="alert" className="w-full text-sm text-danger">{errorText(remove.error)}</p> : null}
+          </div>
+        ) : null}
+      </div>
+      <aside className="grid content-start gap-4 xl:sticky xl:top-4">
         <div className="rounded-xl border border-line bg-card p-4">
           <LinkPanel projectId={project.id} artifactId={componentId} mode="component" canWrite={canWrite} />
         </div>
@@ -1161,10 +1175,6 @@ export function ComponentDetailPage() {
           <UsagePanel projectId={project.id} artifactId={componentId} title={draft.name} />
         </div>
       </aside>
-      <div className="rounded-xl border border-line bg-card p-4 xl:col-span-2">
-        <SourcesPanel projectId={project.id} artifactId={componentId} canWrite={canWrite} />
-      </div>
-      <ComponentSchema projectId={project.id} componentId={componentId} kind={draft.kind} canWrite={canWrite} />
     </div>
   )
 }

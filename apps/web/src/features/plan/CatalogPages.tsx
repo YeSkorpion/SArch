@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
-import { Button, Field, Input, Select } from '../../components/ui'
+import { Button, Field, Input, Modal, Select } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import type { Area, CatalogTable, DocumentListItem } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
@@ -27,10 +27,11 @@ export function CatalogPage() {
   const [sourceName, setSourceName] = useState('')
   const [areaId, setAreaId] = useState('')
   const [documentId, setDocumentId] = useState('')
+  const [open, setOpen] = useState(false)
   const client = useQueryClient()
   const create = useMutation({
     mutationFn: () => api<CatalogTable>(`/api/v1/projects/${project.id}/catalog`, { method: 'POST', body: { name, purpose, sourceName, areaId: areaId || null, documentId: documentId || null } }),
-    onSuccess: () => { setName(''); setPurpose(''); void client.invalidateQueries({ queryKey: ['catalog', project.id] }) },
+    onSuccess: () => { setName(''); setPurpose(''); setSourceName(''); setAreaId(''); setDocumentId(''); setOpen(false); void client.invalidateQueries({ queryKey: ['catalog', project.id] }) },
   })
   const groups = new Map<string, CatalogTable[]>()
   for (const table of tables.data ?? []) {
@@ -39,9 +40,12 @@ export function CatalogPage() {
   }
   return (
     <div className="grid w-full gap-4 px-4 py-6 md:px-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Datenmodell</h1>
-        <p className="text-sm text-muted">Tabellen aus den in SArch gepflegten Angaben. Eine Dokumentationsseite kann verknüpft werden, bevor Spalten erfasst sind.</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Datenmodell</h1>
+          <p className="text-sm text-muted">Tabellen aus den in SArch gepflegten Angaben. Eine Dokumentationsseite kann verknüpft werden, bevor Spalten erfasst sind.</p>
+        </div>
+        {canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Tabelle verknüpfen</Button> : null}
       </header>
       <Input aria-label="Tabellen suchen" placeholder="Tabelle, Beschreibung oder Spalte" value={q} onChange={(event) => {
         const next = new URLSearchParams(params)
@@ -67,9 +71,8 @@ export function CatalogPage() {
           </ul>
         </section>
       ))}
-      {canWrite ? (
-        <form className="grid gap-3 rounded-xl border border-line bg-card p-4" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
-          <h2 className="font-semibold">Tabelle verknüpfen</h2>
+      <Modal open={open} onOpenChange={setOpen} title="Tabelle verknüpfen" description="Name und Zweck reichen. Bereich und Dokumentationsseite kannst du später setzen.">
+        <form className="grid max-h-[70vh] gap-3 overflow-auto" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <Field label="Tabellenname"><Input aria-label="Tabellenname" value={name} onChange={(event) => setName(event.target.value)} /></Field>
           <Field label="Zweck"><Input aria-label="Zweck" value={purpose} onChange={(event) => setPurpose(event.target.value)} /></Field>
           <Field label="Datenquelle"><Input aria-label="Datenquelle" value={sourceName} onChange={(event) => setSourceName(event.target.value)} /></Field>
@@ -85,10 +88,13 @@ export function CatalogPage() {
               {documents.data?.filter((item) => item.kind === 'Page').map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
             </Select>
           </Field>
-          <Button type="submit" variant="primary" disabled={create.isPending || name.trim().length === 0}>Im Katalog aufnehmen</Button>
           {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => setOpen(false)}>Abbrechen</Button>
+            <Button type="submit" variant="primary" disabled={create.isPending || name.trim().length === 0}>Im Katalog aufnehmen</Button>
+          </div>
         </form>
-      ) : null}
+      </Modal>
     </div>
   )
 }
@@ -101,10 +107,11 @@ export function CatalogDetailPage() {
   const [name, setName] = useState('')
   const [key, setKey] = useState(false)
   const [foreignId, setForeignId] = useState('')
+  const [open, setOpen] = useState(false)
   const table = tables.data?.find((item) => item.id === tableId)
   const add = useMutation({
     mutationFn: () => api(`/api/v1/projects/${project.id}/catalog/${tableId}/columns`, { method: 'POST', body: { name, isPrimaryKey: key, foreignTableId: foreignId || null, notes: '' } }),
-    onSuccess: () => { setName(''); setKey(false); setForeignId(''); void client.invalidateQueries({ queryKey: ['catalog', project.id] }) },
+    onSuccess: () => { setName(''); setKey(false); setForeignId(''); setOpen(false); void client.invalidateQueries({ queryKey: ['catalog', project.id] }) },
   })
   if (tables.isLoading) return <Loading />
   if (tables.isError) return <div className="p-6"><ErrorState error={tables.error} onRetry={() => void tables.refetch()} /></div>
@@ -125,7 +132,10 @@ export function CatalogDetailPage() {
         <div><dt className="text-muted">Fremdschlüssel</dt><dd>{foreign.length > 0 ? foreign.map((item) => item.foreignTableId ? <Link key={item.id} className="mr-2 hover:text-accent" to={`/projekte/${project.id}/dokumente/katalog/${item.foreignTableId}`}>{item.name} → {item.foreignTableName}</Link> : null) : 'Noch nicht erfasst'}</dd></div>
       </dl>
       <section>
-        <h2 className="font-semibold">Spalten</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Spalten</h2>
+          {canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Spalte anlegen</Button> : null}
+        </div>
         {table.columns.length === 0 ? <p className="mt-1 text-sm text-muted">Noch nicht erfasst</p> : (
           <ul className="mt-2 divide-y divide-line">
             {table.columns.map((column) => (
@@ -137,8 +147,8 @@ export function CatalogDetailPage() {
           </ul>
         )}
       </section>
-      {canWrite ? (
-        <form className="grid gap-2 rounded-xl border border-line bg-card p-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); add.mutate() }}>
+      <Modal open={open} onOpenChange={setOpen} title="Spalte anlegen">
+        <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); add.mutate() }}>
           <Field label="Spalte"><Input aria-label="Spaltenname" value={name} onChange={(event) => setName(event.target.value)} /></Field>
           <Field label="Fremdschlüssel">
             <Select aria-label="Referenzierte Tabelle" value={foreignId} onChange={(event) => setForeignId(event.target.value)}>
@@ -147,10 +157,13 @@ export function CatalogDetailPage() {
             </Select>
           </Field>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={key} onChange={(event) => setKey(event.target.checked)} /> Primärschlüssel</label>
-          <Button type="submit" disabled={add.isPending || name.trim().length === 0}>Spalte speichern</Button>
-          {add.isError ? <p role="alert" className="text-sm text-danger sm:col-span-2">{errorText(add.error)}</p> : null}
+          {add.isError ? <p role="alert" className="text-sm text-danger">{errorText(add.error)}</p> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => setOpen(false)}>Abbrechen</Button>
+            <Button type="submit" variant="primary" disabled={add.isPending || name.trim().length === 0}>Spalte speichern</Button>
+          </div>
         </form>
-      ) : null}
+      </Modal>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
-import { Badge, Button, Field, Input, PageHeader, Select, Textarea } from '../../components/ui'
+import { Badge, Button, Field, Input, Modal, PageHeader, Select, Textarea } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import type { Component, Criterion, DataEntity, DeliveryPlan, OpenPoint, OpenPointKind, Requirement, Screen, ServiceContract } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
@@ -375,10 +375,11 @@ export function OpenPointsPage() {
   const [detail, setDetail] = useState('')
   const [artifactId, setArtifactId] = useState('')
   const [filter, setFilter] = useState<'Offen' | 'Alle'>('Offen')
+  const [open, setOpen] = useState(false)
   const refresh = () => void client.invalidateQueries({ queryKey: ['open-points', project.id] })
   const create = useMutation({
     mutationFn: () => api<OpenPoint>(`/api/v1/projects/${project.id}/open-points`, { method: 'POST', body: { kind, title, detail, artifactId: artifactId || null } }),
-    onSuccess: () => { setTitle(''); setDetail(''); setArtifactId(''); refresh() },
+    onSuccess: () => { setTitle(''); setDetail(''); setArtifactId(''); setOpen(false); refresh() },
   })
   const update = useMutation({
     mutationFn: (point: OpenPoint) => api(`/api/v1/projects/${project.id}/open-points/${point.id}`, { method: 'PATCH', body: { kind: point.kind, title: point.title, detail: point.detail, status: point.status === 'Offen' ? 'Geklaert' : 'Offen', artifactId: point.artifactId } }),
@@ -393,9 +394,18 @@ export function OpenPointsPage() {
   const rows = (points.data ?? []).filter((item) => filter === 'Alle' || item.status === 'Offen')
   return (
     <div className={shell()}>
-      <PageHeader title="Offene Punkte" description="Annahmen, Risiken und Fragen, die die Planung noch blockieren." action={<Button type="button" variant={filter === 'Offen' ? 'primary' : 'secondary'} onClick={() => setFilter((value) => value === 'Offen' ? 'Alle' : 'Offen')}>{filter === 'Offen' ? 'Alle zeigen' : 'Nur offene'}</Button>} />
-      {canWrite ? (
-        <form className="grid gap-3 rounded-xl border border-line bg-card p-4 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
+      <PageHeader
+        title="Offene Punkte"
+        description="Annahmen, Risiken und Fragen, die die Planung noch blockieren."
+        action={(
+          <div className="flex flex-wrap gap-2">
+            {canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Punkt anlegen</Button> : null}
+            <Button type="button" onClick={() => setFilter((value) => value === 'Offen' ? 'Alle' : 'Offen')}>{filter === 'Offen' ? 'Alle zeigen' : 'Nur offene'}</Button>
+          </div>
+        )}
+      />
+      <Modal open={open} onOpenChange={setOpen} title="Punkt anlegen" description="Art und Titel reichen. Beschreibung und Bezug kannst du ergänzen.">
+        <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <Field label="Art"><Select aria-label="Art des Punkts" value={kind} onChange={(event) => setKind(event.target.value as OpenPointKind)}>{pointKinds.map((item) => <option key={item} value={item}>{pointLabel(item)}</option>)}</Select></Field>
           <Field label="Titel"><Input aria-label="Titel des Punkts" value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
           <Field label="Beschreibung"><Textarea value={detail} onChange={(event) => setDetail(event.target.value)} /></Field>
@@ -406,10 +416,13 @@ export function OpenPointsPage() {
               {(components.data ?? []).map((item) => <option key={item.id} value={item.id}>Komponente · {item.name}</option>)}
             </Select>
           </Field>
-          {create.isError ? <p role="alert" className="text-sm text-danger md:col-span-2">{errorText(create.error)}</p> : null}
-          <Button type="submit" variant="primary" disabled={create.isPending || title.trim().length === 0}>Punkt festhalten</Button>
+          {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => setOpen(false)}>Abbrechen</Button>
+            <Button type="submit" variant="primary" disabled={create.isPending || title.trim().length === 0}>Punkt festhalten</Button>
+          </div>
         </form>
-      ) : null}
+      </Modal>
       {rows.length === 0 ? <EmptyState title={filter === 'Offen' ? 'Keine offenen Punkte' : 'Noch keine offenen Punkte'} body="Halte hier fest, was noch angenommen, riskant oder ungeklärt ist." /> : (
         <ul className="grid gap-3">
           {rows.map((item) => (

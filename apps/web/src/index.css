@@ -154,6 +154,18 @@ button:not(:disabled):active {
   transform: translateY(1px);
 }
 
+.workspace-tabs {
+  scrollbar-width: none;
+}
+
+.workspace-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-tabs button:not(:disabled):active {
+  transform: none;
+}
+
 .studio-page {
   animation: studio-page var(--motion-panel) var(--ease);
 }

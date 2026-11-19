@@ -14,8 +14,10 @@ import {
   Menu as MenuIcon,
   Milestone,
   PanelsTopLeft,
+  Plus,
   Search,
   Settings,
+  X,
   Table2,
   Waypoints,
 } from 'lucide-react'
@@ -125,7 +127,7 @@ export function Shell({ user }: { user: User }) {
         <ProjectNav projectId={current.id} pathname={location.pathname} />
       </aside>
       <div className="flex h-dvh min-w-0 flex-col">
-        <header className="z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-nav px-3">
+        <header className="z-30 flex h-14 shrink-0 items-center gap-2 bg-nav px-3 shadow-[inset_0_-1px_0_0_var(--line)]">
           <span className="inline-flex shrink-0 lg:hidden">
             <Brand mark to="/projekte" />
           </span>
@@ -443,17 +445,21 @@ type WorkspaceTab = { id: string; href: string; label: string }
 
 function WorkspaceTabs({ tabs, activeId, onSelect, onClose, onNew }: { tabs: WorkspaceTab[]; activeId: string; onSelect: (tab: WorkspaceTab) => void; onClose: (id: string) => void; onNew: () => void }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Offene Tabs">
+    <div className="workspace-tabs flex min-w-0 flex-1 items-end gap-1 self-stretch overflow-x-auto pb-px" role="tablist" aria-label="Offene Tabs">
       {tabs.map((tab) => {
         const active = tab.id === activeId
         return (
-          <div key={tab.id} className={`flex max-w-48 shrink-0 items-center rounded-md ${active ? 'bg-background text-foreground ring-1 ring-line' : 'text-muted hover:bg-card'}`}>
-            <button className="min-w-0 truncate px-2.5 py-1 text-left text-sm" type="button" role="tab" aria-selected={active} onClick={() => onSelect(tab)}>{tab.label}</button>
-            <button className="mr-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md text-xs hover:bg-card" type="button" aria-label={`Tab ausblenden: ${tab.label}`} onClick={() => onClose(tab.id)}>×</button>
+          <div key={tab.id} className={`group relative flex h-9 max-w-56 shrink-0 items-center rounded-t-lg ${active ? 'z-10 border border-b-0 border-line bg-background text-foreground after:absolute after:-right-px after:-bottom-px after:-left-px after:h-0.5 after:bg-background' : 'text-muted hover:bg-card/70 hover:text-foreground'}`}>
+            <button className={`min-w-0 truncate px-3 py-1 text-left text-sm ${active ? 'font-medium' : ''}`} type="button" role="tab" aria-selected={active} title={tab.label} onClick={() => onSelect(tab)}>{tab.label}</button>
+            <button className="mr-1 grid h-5 w-5 shrink-0 place-items-center rounded-md text-muted hover:bg-foreground/10 hover:text-foreground" type="button" aria-label={`Tab ausblenden: ${tab.label}`} onClick={() => onClose(tab.id)}>
+              <X size={12} strokeWidth={2.25} aria-hidden="true" />
+            </button>
           </div>
         )
       })}
-      <button className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-card hover:text-foreground" type="button" aria-label="Weiteren Tab öffnen" onClick={onNew}>+</button>
+      <button className="mb-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-card hover:text-foreground" type="button" aria-label="Weiteren Tab öffnen" onClick={onNew}>
+        <Plus size={15} strokeWidth={2} aria-hidden="true" />
+      </button>
     </div>
   )
 }

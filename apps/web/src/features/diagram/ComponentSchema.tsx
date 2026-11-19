@@ -219,7 +219,7 @@ export function ComponentSchema({ projectId, componentId, kind, canWrite }: { pr
   useEffect(() => { setSubtitle(profile.subtitleOptions?.[0] ?? '') }, [profile])
 
   return (
-    <section className="grid gap-4 rounded-xl border border-line bg-card p-4 md:p-5 xl:col-span-2">
+    <section className="grid gap-4 rounded-xl border border-line bg-card p-4 md:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{profile.heading}</h2>
