@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
@@ -168,9 +169,15 @@ export function DataModelPage() {
                 <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); update.mutate({ name: current.name, description: current.description }) }}>
                   <Field label="Name"><Input value={current.name} aria-label="Name des Objekts" onChange={(event) => client.setQueryData<DataEntity[]>(['data-model', project.id], entities.map((item) => item.id === current.id ? { ...item, name: event.target.value } : item))} /></Field>
                   <Field label="Beschreibung"><Input value={current.description} onChange={(event) => client.setQueryData<DataEntity[]>(['data-model', project.id], entities.map((item) => item.id === current.id ? { ...item, description: event.target.value } : item))} /></Field>
-                  <div className="flex gap-2">
-                    <Button type="submit" disabled={update.isPending}>Namen speichern</Button>
-                    <Button type="button" variant="danger" disabled={remove.isPending} onClick={() => remove.mutate()}>Objekt löschen</Button>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 md:col-span-2">
+                    <Button type="button" variant="danger" disabled={remove.isPending} onClick={() => remove.mutate()}>
+                      <Trash2 className="size-4" />
+                      Objekt löschen
+                    </Button>
+                    <Button type="submit" variant="primary" disabled={update.isPending}>
+                      <Save className="size-4" />
+                      Namen speichern
+                    </Button>
                   </div>
                 </form>
               ) : (

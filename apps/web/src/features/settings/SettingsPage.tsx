@@ -82,7 +82,8 @@ export function SettingsPage() {
     <div className="grid w-full gap-6 px-4 py-6 md:px-8">
       <PageHeader title="Einstellungen" description="Name, Export und die Personen, die an diesem Projekt arbeiten." />
       {message ? <p role="status" className="text-sm">{message}</p> : null}
-      <div className={showActions ? 'grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : undefined}>
+      <div className={showActions ? 'grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : 'grid gap-6'}>
+        <div className="grid min-w-0 gap-6">
         <form className="grid content-start gap-5 rounded-2xl border border-line bg-card p-5 md:p-6" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -96,6 +97,44 @@ export function SettingsPage() {
             <Field label="Beschreibung"><Textarea className="min-h-32" value={description} disabled={!canManage} onChange={(event) => setDescription(event.target.value)} /></Field>
           </div>
         </form>
+        <section className="overflow-hidden rounded-2xl border border-line bg-card">
+          <div className="flex items-center justify-between gap-3 px-5 py-4">
+            <h2 className="text-base font-semibold">Mitglieder</h2>
+            <span className="text-sm text-muted">{people.length === 1 ? '1 Person' : `${people.length} Personen`}</span>
+          </div>
+          <ul className="divide-y divide-line border-t border-line">
+            {people.map((member) => (
+              <li key={member.userId} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-background text-xs font-semibold" aria-hidden="true">{initials(member.displayName)}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{member.displayName}</span>
+                  <span className="block truncate text-xs text-muted">{member.email}</span>
+                </span>
+                <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <Badge>{roleLabel(member.role)}</Badge>
+                  {canManage ? (
+                    <>
+                      <Button size="sm" type="button" disabled={changeRole.isPending} onClick={() => changeRole.mutate(member)}>Rolle wechseln</Button>
+                      <Button size="sm" type="button" variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate(member.userId)}>Entfernen</Button>
+                    </>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {canManage ? (
+            <form className="grid gap-3 border-t border-line p-5 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-center" onSubmit={(event) => { event.preventDefault(); add.mutate() }}>
+              <Input type="email" required placeholder="E-Mail" aria-label="E-Mail des Mitglieds" value={email} onChange={(event) => setEmail(event.target.value)} />
+              <Select aria-label="Rolle" value={role} onChange={(event) => setRole(event.target.value as ProjectRole)}>
+                <option value="Owner">Eigentümer</option>
+                <option value="Editor">Bearbeiter</option>
+                <option value="Viewer">Betrachter</option>
+              </Select>
+              <Button type="submit" variant="primary" size="sm" disabled={add.isPending}>Hinzufügen</Button>
+            </form>
+          ) : null}
+        </section>
+        </div>
         {showActions ? (
           <div className="grid gap-4">
             {project.role === 'Owner' ? (
@@ -128,43 +167,6 @@ export function SettingsPage() {
           </div>
         ) : null}
       </div>
-      <section className="overflow-hidden rounded-2xl border border-line bg-card">
-        <div className="flex items-center justify-between gap-3 px-5 py-4">
-          <h2 className="text-base font-semibold">Mitglieder</h2>
-          <span className="text-sm text-muted">{people.length === 1 ? '1 Person' : `${people.length} Personen`}</span>
-        </div>
-        <ul className="divide-y divide-line border-t border-line">
-          {people.map((member) => (
-            <li key={member.userId} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-background text-xs font-semibold" aria-hidden="true">{initials(member.displayName)}</span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium">{member.displayName}</span>
-                <span className="block truncate text-xs text-muted">{member.email}</span>
-              </span>
-              <span className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <Badge>{roleLabel(member.role)}</Badge>
-                {canManage ? (
-                  <>
-                    <Button size="sm" type="button" disabled={changeRole.isPending} onClick={() => changeRole.mutate(member)}>Rolle wechseln</Button>
-                    <Button size="sm" type="button" variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate(member.userId)}>Entfernen</Button>
-                  </>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {canManage ? (
-          <form className="grid gap-3 border-t border-line p-5 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-center" onSubmit={(event) => { event.preventDefault(); add.mutate() }}>
-            <Input type="email" required placeholder="E-Mail" aria-label="E-Mail des Mitglieds" value={email} onChange={(event) => setEmail(event.target.value)} />
-            <Select aria-label="Rolle" value={role} onChange={(event) => setRole(event.target.value as ProjectRole)}>
-              <option value="Owner">Eigentümer</option>
-              <option value="Editor">Bearbeiter</option>
-              <option value="Viewer">Betrachter</option>
-            </Select>
-            <Button type="submit" variant="primary" size="sm" disabled={add.isPending}>Hinzufügen</Button>
-          </form>
-        ) : null}
-      </section>
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
