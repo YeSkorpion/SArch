@@ -208,7 +208,7 @@ function ThemeButton() {
           setDark(next)
         }
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        const start = (document as Document & { startViewTransition?: (callback: () => void) => void }).startViewTransition?.bind(document)
+        const start = (document as unknown as { startViewTransition?: (callback: () => void) => void }).startViewTransition?.bind(document)
         if (reduce || !start) {
           apply()
           return

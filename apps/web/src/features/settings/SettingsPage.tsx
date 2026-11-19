@@ -68,67 +68,75 @@ export function SettingsPage() {
   if (members.isError) return <div className="p-6"><ErrorState error={members.error} onRetry={() => void members.refetch()} /></div>
 
   const people = members.data ?? []
+  const showActions = canManage || project.role === 'Owner'
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-6 md:px-6">
+    <div className="grid w-full gap-6 px-4 py-6 md:px-8">
       <PageHeader title="Einstellungen" description="Name, Export und die Personen, die an diesem Projekt arbeiten." />
       {message ? <p role="status" className="text-sm">{message}</p> : null}
-      <form className="grid gap-4 rounded-xl border border-line bg-card p-4" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">Projekt</h2>
-          {canManage ? <Button type="submit" variant="primary" size="sm" disabled={save.isPending}>Speichern</Button> : <p className="text-sm text-muted">Nur Eigentümer ändern die Projekteinstellungen.</p>}
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Name"><Input value={name} disabled={!canManage} onChange={(event) => setName(event.target.value)} /></Field>
-          <Field label="Beschreibung"><Textarea className="min-h-20" value={description} disabled={!canManage} onChange={(event) => setDescription(event.target.value)} /></Field>
-        </div>
-      </form>
-      {canManage || project.role === 'Owner' ? (
-        <section className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">
-          {canManage ? (
-            <div className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="min-w-0">
-                <h2 className="text-sm font-semibold">{project.isArchived ? 'Archiviert' : 'Aktiv'}</h2>
-                <p className="text-sm text-muted">Ein archiviertes Projekt bleibt lesbar. Änderungen sind dann gesperrt.</p>
-              </div>
-              <Button size="sm" type="button" disabled={archive.isPending} onClick={() => archive.mutate()}>{project.isArchived ? 'Projekt wieder öffnen' : 'Projekt archivieren'}</Button>
+      <div className={showActions ? 'grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : undefined}>
+        <form className="grid content-start gap-5 rounded-2xl border border-line bg-card p-5 md:p-6" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">Projekt</h2>
+              <p className="mt-1 text-sm text-muted">Name und Beschreibung erscheinen in der Projektliste.</p>
             </div>
-          ) : null}
-          {project.role === 'Owner' ? (
-            <div className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="min-w-0">
-                <h2 className="text-sm font-semibold">Export</h2>
-                <p className="text-sm text-muted">Fachliche Projektdaten. Konten, Sitzungen und Mitgliedschaften bleiben in dieser Installation.</p>
-              </div>
-              <Button size="sm" type="button" onClick={() => void exportProject(project.id, project.name)}>Projekt exportieren</Button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-      <section className="overflow-hidden rounded-xl border border-line bg-card">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <h2 className="font-semibold">Mitglieder</h2>
+            {canManage ? <Button type="submit" variant="primary" size="sm" disabled={save.isPending}>Speichern</Button> : <p className="text-sm text-muted">Nur Eigentümer ändern die Projekteinstellungen.</p>}
+          </div>
+          <div className="grid gap-4">
+            <Field label="Name"><Input value={name} disabled={!canManage} onChange={(event) => setName(event.target.value)} /></Field>
+            <Field label="Beschreibung"><Textarea className="min-h-32" value={description} disabled={!canManage} onChange={(event) => setDescription(event.target.value)} /></Field>
+          </div>
+        </form>
+        {showActions ? (
+          <div className="grid gap-4">
+            {canManage ? (
+              <section className="grid gap-4 rounded-2xl border border-line bg-card p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center xl:grid-cols-1">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold">{project.isArchived ? 'Archiviert' : 'Aktiv'}</h2>
+                  <p className="mt-1 text-sm text-muted">Ein archiviertes Projekt bleibt lesbar. Änderungen sind dann gesperrt.</p>
+                </div>
+                <Button size="sm" type="button" disabled={archive.isPending} onClick={() => archive.mutate()}>{project.isArchived ? 'Projekt wieder öffnen' : 'Projekt archivieren'}</Button>
+              </section>
+            ) : null}
+            {project.role === 'Owner' ? (
+              <section className="grid gap-4 rounded-2xl border border-line bg-card p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center xl:grid-cols-1">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold">Export</h2>
+                  <p className="mt-1 text-sm text-muted">Fachliche Projektdaten. Konten, Sitzungen und Mitgliedschaften bleiben in dieser Installation.</p>
+                </div>
+                <Button size="sm" type="button" onClick={() => void exportProject(project.id, project.name)}>Projekt exportieren</Button>
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      <section className="overflow-hidden rounded-2xl border border-line bg-card">
+        <div className="flex items-center justify-between gap-3 px-5 py-4">
+          <h2 className="text-base font-semibold">Mitglieder</h2>
           <span className="text-sm text-muted">{people.length === 1 ? '1 Person' : `${people.length} Personen`}</span>
         </div>
         <ul className="divide-y divide-line border-t border-line">
           {people.map((member) => (
-            <li key={member.userId} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-background text-xs font-semibold" aria-hidden="true">{initials(member.displayName)}</span>
-              <span className="min-w-0 flex-1">
+            <li key={member.userId} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-background text-xs font-semibold" aria-hidden="true">{initials(member.displayName)}</span>
+              <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{member.displayName}</span>
                 <span className="block truncate text-xs text-muted">{member.email}</span>
               </span>
-              <Badge>{roleLabel(member.role)}</Badge>
-              {canManage ? (
-                <span className="flex gap-1">
-                  <Button size="sm" type="button" disabled={changeRole.isPending} onClick={() => changeRole.mutate(member)}>Rolle wechseln</Button>
-                  <Button size="sm" type="button" variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate(member.userId)}>Entfernen</Button>
-                </span>
-              ) : null}
+              <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <Badge>{roleLabel(member.role)}</Badge>
+                {canManage ? (
+                  <>
+                    <Button size="sm" type="button" disabled={changeRole.isPending} onClick={() => changeRole.mutate(member)}>Rolle wechseln</Button>
+                    <Button size="sm" type="button" variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate(member.userId)}>Entfernen</Button>
+                  </>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>
         {canManage ? (
-          <form className="grid gap-2 border-t border-line p-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto] sm:items-center" onSubmit={(event) => { event.preventDefault(); add.mutate() }}>
+          <form className="grid gap-3 border-t border-line p-5 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-center" onSubmit={(event) => { event.preventDefault(); add.mutate() }}>
             <Input type="email" required placeholder="E-Mail" aria-label="E-Mail des Mitglieds" value={email} onChange={(event) => setEmail(event.target.value)} />
             <Select aria-label="Rolle" value={role} onChange={(event) => setRole(event.target.value as ProjectRole)}>
               <option value="Owner">Eigentümer</option>
