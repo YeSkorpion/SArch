@@ -274,7 +274,7 @@ function ProjectNav({ projectId, pathname, onNavigate }: { projectId: string; pa
     enabled: Boolean(diagramId),
   })
   return (
-    <nav className="grid min-h-0 flex-1 content-start gap-1 overflow-auto px-3 pb-3" aria-label="Projekt">
+    <nav className="grid min-h-0 flex-1 content-start gap-1 overflow-auto px-3 pt-5 pb-3" aria-label="Projekt">
       {nav.map(([label, segment, Icon]) => (
         <NavLink
           key={label}

@@ -190,12 +190,14 @@ test('durchgängige Planung auf dem Desktop', async ({ page }, info) => {
   await openSection(page, 'Dokumentation')
   await page.getByRole('button', { name: 'Neu', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Seite anlegen' }).click()
+  await page.getByRole('button', { name: 'Bearbeiten' }).click()
   await change(page, '/documents/', 'PUT', async () => {
     await page.getByLabel('Seitentitel').fill('Handbuch')
   })
   await openSection(page, 'Dokumentation')
   await page.getByRole('button', { name: 'Neu', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Seite anlegen' }).click()
+  await page.getByRole('button', { name: 'Bearbeiten' }).click()
   await change(page, '/documents/', 'PUT', async () => {
     await page.getByLabel('Seitentitel').fill('Kapitel')
   })
@@ -212,6 +214,7 @@ test('durchgängige Planung auf dem Desktop', async ({ page }, info) => {
   await page.getByRole('menuitem', { name: 'Entscheidung anlegen' }).click()
   await expect(page.locator('.ProseMirror')).toContainText('Kontext')
   await expect(page.locator('.ProseMirror')).toContainText('Konsequenzen')
+  await page.getByRole('button', { name: 'Bearbeiten' }).click()
   await change(page, '/documents/', 'PUT', async () => {
     await page.getByLabel('Seitentitel').fill('Freigabeentscheidung')
   })
@@ -291,6 +294,7 @@ test('Liste, Dokument und Fokus auf schmaler Breite', async ({ page }, info) => 
   await openSection(page, 'Dokumentation')
   await expect(page.getByText('Noch keine Seiten')).toBeVisible()
   await page.getByRole('button', { name: 'Seite anlegen' }).click()
+  await page.getByRole('button', { name: 'Bearbeiten' }).click()
   await change(page, '/documents/', 'PUT', async () => {
     await page.getByLabel('Seitentitel').fill('Mobilhandbuch')
     await page.locator('.ProseMirror').click()

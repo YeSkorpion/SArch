@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
 import { ConflictBanner, EmptyState, ErrorState, Loading, SaveBadge } from '../../components/states'
-import { Button, Field, Input, Menu, MenuItem, Modal, Select } from '../../components/ui'
+import { Badge, Button, Field, Input, Menu, MenuItem, Modal, Select } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
 import { useAutosave } from '../../lib/autosave'
 import { artifactHref, createsCycle, documentStatusLabel } from '../../lib/labels'
@@ -371,6 +371,7 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
   const [href, setHref] = useState('')
   const [term, setTerm] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const client = useQueryClient()
   deletedIds.clear()
   for (const embed of initial.embeds) if (embed.deleted) deletedIds.add(embed.id)
@@ -390,8 +391,9 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
       ArtifactLink,
     ],
     content: JSON.parse(initial.contentJson) as object,
-    editable: canWrite,
-    onUpdate: ({ editor: current }) => {
+    editable: false,
+    onUpdate: ({ editor: current, transaction }) => {
+      if (!transaction.docChanged) return
       setContent(JSON.stringify(current.getJSON()))
       setDirty(true)
     },
@@ -467,29 +469,42 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
     enabled: revision !== null,
   })
 
+  useEffect(() => {
+    editor?.setEditable(editing && canWrite)
+  }, [editor, editing, canWrite])
+
   useEffect(() => () => { editor?.destroy() }, [editor])
 
   const path = documentPath(documents.data ?? [], initial.id)
   return (
-    <div className="grid w-full gap-6 px-4 py-6 md:px-8">
+    <div className="mx-auto grid w-full max-w-3xl gap-8 px-4 py-8 md:px-8">
       <LeaveGuard when={dirty || autosave.state === 'conflict'} />
-      <section className="grid gap-3">
+      <section className="grid gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="truncate font-mono text-xs text-muted" title={path}>{path}</p>
-          <SaveBadge state={autosave.state} />
+          <div className="flex items-center gap-2">
+            <SaveBadge state={autosave.state} />
+            {canWrite ? (
+              <Button size="sm" type="button" variant={editing ? 'secondary' : 'primary'} onClick={() => setEditing((value) => !value)}>{editing ? 'Fertig' : 'Bearbeiten'}</Button>
+            ) : null}
+          </div>
         </div>
-        <Input className="h-auto border-transparent bg-transparent px-0 text-3xl font-semibold tracking-tight" aria-label="Seitentitel" value={title} disabled={!canWrite} onChange={(event) => { setTitle(event.target.value); setDirty(true) }} />
+        <Input className="h-auto cursor-text border-transparent bg-transparent px-0 text-4xl font-semibold tracking-tight read-only:cursor-default" aria-label="Seitentitel" value={title} readOnly={!editing} onChange={(event) => { setTitle(event.target.value); setDirty(true) }} />
         {initial.kind === 'Decision' ? (
-          <Field label="Status">
-            <Select value={status} disabled={!canWrite} onChange={(event) => { setStatus(event.target.value as DocumentStatus); setDirty(true) }}>
-              {(['Vorgeschlagen', 'Akzeptiert', 'Abgeloest'] as DocumentStatus[]).map((item) => <option key={item} value={item}>{documentStatusLabel(item)}</option>)}
-            </Select>
-          </Field>
+          editing ? (
+            <Field label="Status">
+              <Select value={status} onChange={(event) => { setStatus(event.target.value as DocumentStatus); setDirty(true) }}>
+                {(['Vorgeschlagen', 'Akzeptiert', 'Abgeloest'] as DocumentStatus[]).map((item) => <option key={item} value={item}>{documentStatusLabel(item)}</option>)}
+              </Select>
+            </Field>
+          ) : (
+            <Badge tone="accent">{documentStatusLabel(status)}</Badge>
+          )
         ) : null}
         {autosave.state === 'conflict' ? (
           <ConflictBanner onReload={() => { setDirty(false); autosave.clearConflict(); void reload() }} onKeep={() => autosave.retry()} />
         ) : null}
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 rounded-xl border border-line bg-nav p-1.5" role="toolbar" aria-label="Textformatierung">
+        {editing ? <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 rounded-xl border border-line bg-nav/95 p-1 shadow-sm backdrop-blur" role="toolbar" aria-label="Textformatierung">
           <FormatButton label="Große Überschrift" pressed={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 size={15} /></FormatButton>
           <FormatButton label="Überschrift" pressed={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 size={15} /></FormatButton>
           <FormatButton label="Untertitel" pressed={editor?.isActive('heading', { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 size={15} /></FormatButton>
@@ -510,44 +525,66 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
           <FormatButton label="Code" pressed={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><span className="font-mono text-xs">{'</>'}</span></FormatButton>
           <FormatButton label="Weblink" pressed={editor?.isActive('link')} onClick={() => { setHref(String(editor?.getAttributes('link').href ?? '')); setWebOpen(true) }}><Link2 size={15} /></FormatButton>
           <FormatButton label="Artefaktlink" onClick={() => setLinkOpen(true)}><span className="text-xs font-medium">Artefakt</span></FormatButton>
-        </div>
-        {editor?.isActive('table') ? (
+        </div> : null}
+        {editing && editor?.isActive('table') ? (
           <div className="flex flex-wrap gap-1">
             <Button size="sm" type="button" onClick={() => editor.chain().focus().addRowAfter().run()}>Zeile darunter</Button>
             <Button size="sm" type="button" onClick={() => editor.chain().focus().addColumnAfter().run()}>Spalte rechts</Button>
             <Button size="sm" type="button" variant="danger" onClick={() => editor.chain().focus().deleteTable().run()}>Tabelle entfernen</Button>
           </div>
         ) : null}
-        <div className="studio-prose min-h-80 rounded-xl border border-line bg-card px-6 py-5">
+        <div className={`studio-prose ${editing ? 'min-h-80 rounded-2xl border border-line bg-card px-6 py-6 shadow-sm' : 'is-reading px-1 py-1'}`}>
           <EditorContent editor={editor} />
         </div>
         {initial.embeds.some((embed) => embed.deleted) ? <p className="text-sm text-warning">Mindestens ein interner Link zeigt auf ein gelöschtes Artefakt.</p> : null}
       </section>
-      <section className="rounded-xl border border-line bg-card p-4">
-        <SourcesPanel projectId={projectId} artifactId={initial.id} canWrite={canWrite} />
-      </section>
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="grid content-start gap-3 rounded-xl border border-line bg-card p-4">
-          <h2 className="text-sm font-semibold">Struktur</h2>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-52 flex-1">
-              <Field label="Übergeordnete Seite">
-                <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
-                  <option value="">Oberste Ebene</option>
-                  {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-                </Select>
-              </Field>
-            </div>
-            <Button type="button" disabled={!canWrite} onClick={() => {
-              if (createsCycle(initial.id, parentId || null, parents)) {
-                setMessage('Die Seite kann nicht unter eine ihrer eigenen Unterseiten verschoben werden.')
-                return
-              }
-              move.mutate()
-            }}>Verschieben</Button>
-            {canWrite ? <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Löschen</Button> : null}
+      <section className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="grid gap-3">
+          <div className="rounded-xl border border-line bg-card px-4 py-3">
+            <SourcesPanel projectId={projectId} artifactId={initial.id} canWrite={canWrite} compact />
           </div>
-          {message ? <p role="status" className="text-sm">{message}</p> : null}
+          <div className="rounded-xl border border-line bg-card px-4 py-3">
+            <h2 className="text-sm font-semibold">Struktur</h2>
+            <div className="mt-2 flex flex-wrap items-end gap-2">
+              <div className="min-w-48 flex-1">
+                <Field label="Übergeordnete Seite">
+                  <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
+                    <option value="">Oberste Ebene</option>
+                    {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              <Button size="sm" type="button" disabled={!canWrite} onClick={() => {
+                if (createsCycle(initial.id, parentId || null, parents)) {
+                  setMessage('Die Seite kann nicht unter eine ihrer eigenen Unterseiten verschoben werden.')
+                  return
+                }
+                move.mutate()
+              }}>Verschieben</Button>
+              {canWrite ? <Button size="sm" type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Löschen</Button> : null}
+            </div>
+            {message ? <p role="status" className="mt-2 text-sm">{message}</p> : null}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <details className="group rounded-xl border border-line bg-card">
+              <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm font-medium">
+                <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+                Verknüpfungen
+              </summary>
+              <div className="border-t border-line px-4 py-3">
+                <LinkPanel projectId={projectId} artifactId={initial.id} mode="document" canWrite={false} heading={false} />
+              </div>
+            </details>
+            <details className="group rounded-xl border border-line bg-card">
+              <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm font-medium">
+                <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+                Auswirkungen
+              </summary>
+              <div className="border-t border-line px-4 py-3">
+                <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} heading={false} />
+              </div>
+            </details>
+          </div>
         </div>
         <div className="grid content-start gap-2">
           <h2 className="text-sm font-semibold">Revisionen</h2>
@@ -556,7 +593,7 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
             <ul className="studio-scroll max-h-64 rounded-xl border border-line bg-card">
               {revisions.data.map((item) => (
                 <li key={item.id} className="border-b border-line last:border-b-0">
-                  <button className={`w-full px-3 py-2 text-left text-sm hover:bg-background ${revision === item.number ? 'bg-background text-accent' : ''}`} type="button" onClick={() => setRevision(item.number)}>
+                  <button className={`w-full px-3 py-1.5 text-left text-sm hover:bg-background ${revision === item.number ? 'bg-background text-accent' : ''}`} type="button" onClick={() => setRevision(item.number)}>
                     <span className="block truncate">{item.number}. {item.title}</span>
                     <span className="block truncate text-xs text-muted">{item.authorName}</span>
                   </button>
@@ -574,26 +611,6 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
           {canWrite ? <Button className="mt-2" size="sm" type="button" onClick={() => restore.mutate(opened.data!.number)}>Als neue Revision wiederherstellen</Button> : null}
         </div>
       ) : null}
-      <div className="grid gap-3 lg:grid-cols-2">
-        <details className="group rounded-xl border border-line bg-card">
-          <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium">
-            <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
-            Verknüpfungen
-          </summary>
-          <div className="border-t border-line px-4 py-3">
-            <LinkPanel projectId={projectId} artifactId={initial.id} mode="document" canWrite={false} heading={false} />
-          </div>
-        </details>
-        <details className="group rounded-xl border border-line bg-card">
-          <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium">
-            <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
-            Auswirkungen
-          </summary>
-          <div className="border-t border-line px-4 py-3">
-            <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} heading={false} />
-          </div>
-        </details>
-      </div>
       <Modal open={webOpen} onOpenChange={setWebOpen} title="Weblink">
         <Field label="Adresse">
           <Input aria-label="Adresse" value={href} placeholder="https://…" onChange={(event) => setHref(event.target.value)} />

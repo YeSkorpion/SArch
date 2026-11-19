@@ -12,7 +12,7 @@ function stateLabel(state: ArtifactSource['state']) {
   return 'Ungeprüft'
 }
 
-export function SourcesPanel({ projectId, artifactId, canWrite }: { projectId: string; artifactId: string; canWrite: boolean }) {
+export function SourcesPanel({ projectId, artifactId, canWrite, compact = false }: { projectId: string; artifactId: string; canWrite: boolean; compact?: boolean }) {
   const client = useQueryClient()
   const sources = useQuery({
     queryKey: ['sources', projectId, artifactId],
@@ -41,15 +41,21 @@ export function SourcesPanel({ projectId, artifactId, canWrite }: { projectId: s
     onSuccess: () => void refresh(),
   })
   const pending = sources.data?.some((item) => item.state !== 'Geprueft')
+  const empty = sources.data?.length === 0
+  const status = empty ? 'Noch keine Quelle.' : pending ? 'Mindestens eine Quelle ist ungeprüft oder wurde seit der Prüfung geändert.' : 'Alle Quellen sind geprüft.'
   return (
-    <section className="grid gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold">Quellen und Aktualität</h2>
-          <p className="text-sm text-muted">Die Prüfung gilt für die hier hinterlegte Zuordnung. Ein geändertes Ziel muss erneut geprüft werden.</p>
-          {sources.data && sources.data.length > 0 ? <p className="mt-1 text-sm">{pending ? 'Mindestens eine Quelle ist ungeprüft oder wurde seit der Prüfung geändert.' : 'Alle Quellen sind geprüft.'}</p> : null}
+    <section className={compact ? 'grid gap-2' : 'grid gap-3'}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className={compact ? 'text-sm font-semibold' : 'font-semibold'}>Quellen und Aktualität</h2>
+          {compact ? <p className="text-xs text-muted">{sources.data ? status : 'Die Prüfung gilt für die hier hinterlegte Zuordnung.'}</p> : (
+            <>
+              <p className="text-sm text-muted">Die Prüfung gilt für die hier hinterlegte Zuordnung. Ein geändertes Ziel muss erneut geprüft werden.</p>
+              {sources.data && !empty ? <p className="mt-1 text-sm">{status}</p> : null}
+            </>
+          )}
         </div>
-        {canWrite ? <Button type="button" variant="primary" onClick={() => setOpen(true)}>Quelle hinzufügen</Button> : null}
+        {canWrite ? <Button type="button" variant={compact ? 'secondary' : 'primary'} size={compact ? 'sm' : 'md'} onClick={() => setOpen(true)}>Quelle hinzufügen</Button> : null}
       </div>
       {sources.isLoading ? <p className="text-sm text-muted">Wird geladen …</p> : null}
       {sources.isError ? <p role="alert" className="text-sm text-danger">{errorText(sources.error)}</p> : null}
@@ -70,7 +76,7 @@ export function SourcesPanel({ projectId, artifactId, canWrite }: { projectId: s
           </li>
         ))}
       </ul>
-      {sources.data?.length === 0 ? <p className="text-sm text-muted">Noch keine Quelle.</p> : null}
+      {!compact && empty ? <p className="text-sm text-muted">Noch keine Quelle.</p> : null}
       <Modal open={open} onOpenChange={setOpen} title="Quelle hinzufügen" description="Art, Titel und Ziel reichen. Die Referenz gilt für die nächste Prüfung.">
         <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <Field label="Art">
