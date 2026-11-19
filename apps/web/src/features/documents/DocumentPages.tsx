@@ -477,7 +477,7 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
 
   const path = documentPath(documents.data ?? [], initial.id)
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-8 px-4 py-8 md:px-8">
+    <div className="grid w-full gap-8 px-4 py-6 md:px-8">
       <LeaveGuard when={dirty || autosave.state === 'conflict'} />
       <section className="grid gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -538,22 +538,20 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
         </div>
         {initial.embeds.some((embed) => embed.deleted) ? <p className="text-sm text-warning">Mindestens ein interner Link zeigt auf ein gelöschtes Artefakt.</p> : null}
       </section>
-      <section className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
-        <div className="grid gap-3">
-          <div className="rounded-xl border border-line bg-card px-4 py-3">
+      <section className="overflow-hidden rounded-2xl border border-line bg-card">
+        <div className="grid divide-y divide-line xl:grid-cols-3 xl:divide-x xl:divide-y-0">
+          <div className="p-4">
             <SourcesPanel projectId={projectId} artifactId={initial.id} canWrite={canWrite} compact />
           </div>
-          <div className="rounded-xl border border-line bg-card px-4 py-3">
+          <div className="grid content-start gap-3 p-4">
             <h2 className="text-sm font-semibold">Struktur</h2>
-            <div className="mt-2 flex flex-wrap items-end gap-2">
-              <div className="min-w-48 flex-1">
-                <Field label="Übergeordnete Seite">
-                  <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
-                    <option value="">Oberste Ebene</option>
-                    {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-                  </Select>
-                </Field>
-              </div>
+            <Field label="Übergeordnete Seite">
+              <Select aria-label="Übergeordnete Seite" value={parentId} disabled={!canWrite || initial.kind === 'Decision'} onChange={(event) => setParentId(event.target.value)}>
+                <option value="">Oberste Ebene</option>
+                {(documents.data ?? []).filter((item) => item.kind === 'Page' && item.id !== initial.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </Select>
+            </Field>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button size="sm" type="button" disabled={!canWrite} onClick={() => {
                 if (createsCycle(initial.id, parentId || null, parents)) {
                   setMessage('Die Seite kann nicht unter eine ihrer eigenen Unterseiten verschoben werden.')
@@ -563,44 +561,44 @@ function DocumentEditor({ projectId, canWrite, initial, reload }: { projectId: s
               }}>Verschieben</Button>
               {canWrite ? <Button size="sm" type="button" variant="danger" onClick={() => setDeleteOpen(true)}>Löschen</Button> : null}
             </div>
-            {message ? <p role="status" className="mt-2 text-sm">{message}</p> : null}
+            {message ? <p role="status" className="text-sm">{message}</p> : null}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <details className="group rounded-xl border border-line bg-card">
-              <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm font-medium">
-                <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
-                Verknüpfungen
-              </summary>
-              <div className="border-t border-line px-4 py-3">
-                <LinkPanel projectId={projectId} artifactId={initial.id} mode="document" canWrite={false} heading={false} />
-              </div>
-            </details>
-            <details className="group rounded-xl border border-line bg-card">
-              <summary className="flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm font-medium">
-                <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
-                Auswirkungen
-              </summary>
-              <div className="border-t border-line px-4 py-3">
-                <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} heading={false} />
-              </div>
-            </details>
+          <div className="grid content-start gap-2 p-4">
+            <h2 className="text-sm font-semibold">Revisionen</h2>
+            {revisions.data && revisions.data.length === 0 ? <p className="text-sm text-muted">Noch keine gespeicherte Revision.</p> : null}
+            {revisions.data && revisions.data.length > 0 ? (
+              <ul className="studio-scroll max-h-56">
+                {revisions.data.map((item) => (
+                  <li key={item.id} className="border-b border-line last:border-b-0">
+                    <button className={`w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-background ${revision === item.number ? 'bg-background text-accent' : ''}`} type="button" onClick={() => setRevision(item.number)}>
+                      <span className="block truncate">{item.number}. {item.title}</span>
+                      <span className="block truncate text-xs text-muted">{item.authorName}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </div>
-        <div className="grid content-start gap-2">
-          <h2 className="text-sm font-semibold">Revisionen</h2>
-          {revisions.data && revisions.data.length === 0 ? <p className="text-sm text-muted">Noch keine gespeicherte Revision.</p> : null}
-          {revisions.data && revisions.data.length > 0 ? (
-            <ul className="studio-scroll max-h-64 rounded-xl border border-line bg-card">
-              {revisions.data.map((item) => (
-                <li key={item.id} className="border-b border-line last:border-b-0">
-                  <button className={`w-full px-3 py-1.5 text-left text-sm hover:bg-background ${revision === item.number ? 'bg-background text-accent' : ''}`} type="button" onClick={() => setRevision(item.number)}>
-                    <span className="block truncate">{item.number}. {item.title}</span>
-                    <span className="block truncate text-xs text-muted">{item.authorName}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+        <div className="grid divide-y divide-line border-t border-line md:grid-cols-2 md:divide-x md:divide-y-0">
+          <details className="group">
+            <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium">
+              <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+              Verknüpfungen
+            </summary>
+            <div className="border-t border-line px-4 py-3">
+              <LinkPanel projectId={projectId} artifactId={initial.id} mode="document" canWrite={false} heading={false} />
+            </div>
+          </details>
+          <details className="group">
+            <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium">
+              <ChevronDown size={14} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+              Auswirkungen
+            </summary>
+            <div className="border-t border-line px-4 py-3">
+              <UsagePanel projectId={projectId} artifactId={initial.id} title={initial.title} heading={false} />
+            </div>
+          </details>
         </div>
       </section>
       {opened.data ? (
