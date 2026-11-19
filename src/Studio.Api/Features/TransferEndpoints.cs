@@ -33,9 +33,9 @@ public static partial class TransferEndpoints
             Diagrams = await db.Diagrams.AsNoTracking().Where(item => item.ProjectId == projectId).OrderBy(item => item.Name)
                 .Select(item => new TransferDiagram { Id = item.ArtifactId, Name = item.Name, Description = item.Description, Kind = item.Kind.ToString(), AreaId = item.AreaId }).ToListAsync(ct),
             Nodes = await db.DiagramNodes.AsNoTracking().Where(item => item.ProjectId == projectId)
-                .Select(item => new TransferNode { Id = item.ArtifactId, DiagramId = item.DiagramId, NodeType = item.NodeType, Title = item.Title, X = item.PositionX, Y = item.PositionY, ComponentId = item.ComponentId, Description = item.Description, EventName = item.EventName }).ToListAsync(ct),
+                .Select(item => new TransferNode { Id = item.ArtifactId, DiagramId = item.DiagramId, NodeType = item.NodeType, Title = item.Title, X = item.PositionX, Y = item.PositionY, ComponentId = item.ComponentId, Description = item.Description, EventName = item.EventName, Color = item.Color, Comment = item.Comment }).ToListAsync(ct),
             Edges = await db.DiagramEdges.AsNoTracking().Where(item => item.ProjectId == projectId)
-                .Select(item => new TransferEdge { Id = item.Id, DiagramId = item.DiagramId, SourceId = item.SourceNodeId, TargetId = item.TargetNodeId, Kind = item.Kind.ToString(), Label = item.Label, Condition = item.Condition, Protocol = item.Protocol }).ToListAsync(ct),
+                .Select(item => new TransferEdge { Id = item.Id, DiagramId = item.DiagramId, SourceId = item.SourceNodeId, TargetId = item.TargetNodeId, Kind = item.Kind.ToString(), Label = item.Label, Condition = item.Condition, Protocol = item.Protocol, Color = item.Color }).ToListAsync(ct),
             Components = await db.Components.AsNoTracking().Where(item => item.ProjectId == projectId)
                 .Select(item => new TransferComponent { Id = item.ArtifactId, Name = item.Name, Description = item.Description, Kind = item.Kind.ToString(), Technology = item.Technology }).ToListAsync(ct),
             Screens = await db.Screens.AsNoTracking().Where(item => item.ProjectId == projectId)
@@ -225,9 +225,11 @@ public static partial class TransferEndpoints
                 ComponentId = item.ComponentId,
                 Description = item.Description,
                 EventName = item.EventName,
+                Color = item.Color,
+                Comment = item.Comment,
                 CreatedAt = now,
                 UpdatedAt = now,
-                SearchText = SearchText.Build(item.Title, item.Description, item.EventName),
+                SearchText = SearchText.Build(item.Title, item.Description, item.EventName, item.Comment),
             });
         }
 
@@ -245,6 +247,7 @@ public static partial class TransferEndpoints
                 Label = item.Label,
                 Condition = item.Condition,
                 Protocol = item.Protocol,
+                Color = item.Color,
             });
         }
 

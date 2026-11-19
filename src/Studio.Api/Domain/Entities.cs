@@ -103,6 +103,8 @@ public sealed class DiagramNode
     public Guid? ComponentId { get; set; }
     public string? Description { get; set; }
     public string? EventName { get; set; }
+    public string? Color { get; set; }
+    public string? Comment { get; set; }
     public int Version { get; set; } = 1;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -123,6 +125,7 @@ public sealed class DiagramEdge
     public string? Label { get; set; }
     public string? Condition { get; set; }
     public string? Protocol { get; set; }
+    public string? Color { get; set; }
 }
 
 public sealed class Component

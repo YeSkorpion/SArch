@@ -36,14 +36,13 @@ export function analyzeProcess(nodes: CheckNode[], edges: CheckEdge[]): CheckIss
       }
     }
     for (const node of nodes) {
-      if (!seen.has(node.id)) {
-        issues.push({
-          code: 'unreachable',
-          message: `„${trim(node.title)}“ ist vom Start aus nicht erreichbar.`,
-          nodeId: node.id,
-          edgeId: null,
-        })
-      }
+      if (node.nodeType === 'note' || seen.has(node.id)) continue
+      issues.push({
+        code: 'unreachable',
+        message: `„${trim(node.title)}“ ist vom Start aus nicht erreichbar.`,
+        nodeId: node.id,
+        edgeId: null,
+      })
     }
   }
 

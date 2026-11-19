@@ -149,8 +149,8 @@ public static class DiagramEndpoints
 
         diagram.AreaId = body.AreaId;
 
-        var drafts = body.Nodes.Select(node => new DiagramNodeDraft(node.Id, node.NodeType, node.Title ?? "", node.X, node.Y, node.ComponentId, node.Description, node.EventName)).ToList();
-        var edgeDrafts = body.Edges.Select(edge => new DiagramEdgeDraft(edge.Id, edge.Kind, edge.SourceId, edge.TargetId, edge.Label, edge.Condition, edge.Protocol)).ToList();
+        var drafts = body.Nodes.Select(node => new DiagramNodeDraft(node.Id, node.NodeType, node.Title ?? "", node.X, node.Y, node.ComponentId, node.Description, node.EventName, node.Color, node.Comment)).ToList();
+        var edgeDrafts = body.Edges.Select(edge => new DiagramEdgeDraft(edge.Id, edge.Kind, edge.SourceId, edge.TargetId, edge.Label, edge.Condition, edge.Protocol, edge.Color)).ToList();
         var structure = DiagramRules.ValidateStructure(diagram.Kind, drafts, edgeDrafts);
         if (structure.Count > 0)
         {
@@ -260,9 +260,11 @@ public static class DiagramEndpoints
                     ComponentId = draft.ComponentId,
                     Description = draft.Description?.Trim(),
                     EventName = draft.EventName?.Trim(),
+                    Color = Tone(draft.Color),
+                    Comment = Blank(draft.Comment),
                     CreatedAt = now,
                     UpdatedAt = now,
-                    SearchText = SearchText.Build(title, draft.Description, draft.EventName),
+                    SearchText = SearchText.Build(title, draft.Description, draft.EventName, draft.Comment),
                 });
             }
             else
@@ -274,7 +276,9 @@ public static class DiagramEndpoints
                 current.ComponentId = draft.ComponentId;
                 current.Description = draft.Description?.Trim();
                 current.EventName = draft.EventName?.Trim();
-                current.SearchText = SearchText.Build(title, current.Description, current.EventName);
+                current.Color = Tone(draft.Color);
+                current.Comment = Blank(draft.Comment);
+                current.SearchText = SearchText.Build(title, current.Description, current.EventName, current.Comment);
                 current.Version++;
                 current.UpdatedAt = now;
             }
@@ -298,6 +302,7 @@ public static class DiagramEndpoints
                     Label = draft.Label?.Trim(),
                     Condition = condition,
                     Protocol = protocol,
+                    Color = Tone(draft.Color),
                 });
             }
             else
@@ -308,6 +313,7 @@ public static class DiagramEndpoints
                 current.Label = draft.Label?.Trim();
                 current.Condition = condition;
                 current.Protocol = protocol;
+                current.Color = Tone(draft.Color);
             }
         }
 
@@ -421,9 +427,9 @@ public static class DiagramEndpoints
             nodes.Select(item =>
             {
                 components.TryGetValue(item.ComponentId ?? Guid.Empty, out var component);
-                return new DiagramNodeResponse(item.ArtifactId, item.NodeType, component?.Name ?? item.Title, item.PositionX, item.PositionY, item.ComponentId, component?.Name, component?.Kind.ToString(), component?.Technology, item.Description, item.EventName, item.Version);
+                return new DiagramNodeResponse(item.ArtifactId, item.NodeType, component?.Name ?? item.Title, item.PositionX, item.PositionY, item.ComponentId, component?.Name, component?.Kind.ToString(), component?.Technology, item.Description, item.EventName, item.Color, item.Comment, item.Version);
             }).ToList(),
-            edges.Select(item => new DiagramEdgeResponse(item.Id, item.Kind, item.SourceNodeId, item.TargetNodeId, item.Label, item.Condition, item.Protocol)).ToList(),
+            edges.Select(item => new DiagramEdgeResponse(item.Id, item.Kind, item.SourceNodeId, item.TargetNodeId, item.Label, item.Condition, item.Protocol, item.Color)).ToList(),
             DiagramRules.Analyze(diagram.Kind, nodeDrafts, edgeDrafts));
     }
 
@@ -436,6 +442,18 @@ public static class DiagramEndpoints
 
         var exists = await db.Areas.AsNoTracking().AnyAsync(item => item.Id == areaId && item.ProjectId == projectId, ct);
         return exists ? null : Problems.BadRequest(http, "Der Bereich gehört nicht zu diesem Projekt.");
+    }
+
+    private static string? Tone(string? color)
+    {
+        var value = color?.Trim();
+        return string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    private static string? Blank(string? value)
+    {
+        var text = value?.Trim();
+        return string.IsNullOrEmpty(text) ? null : text;
     }
 
     private static IResult? ValidateMeta(HttpContext http, string? name, string? description)

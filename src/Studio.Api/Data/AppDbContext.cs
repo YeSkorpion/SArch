@@ -141,6 +141,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             b.Property(x => x.Title).HasMaxLength(160);
             b.Property(x => x.Description).HasMaxLength(4000);
             b.Property(x => x.EventName).HasMaxLength(200);
+            b.Property(x => x.Color).HasMaxLength(16);
+            b.Property(x => x.Comment).HasMaxLength(500);
             b.Property(x => x.SearchText).HasMaxLength(8000);
             b.HasIndex(x => x.DiagramId);
             b.HasIndex(x => x.ComponentId);
@@ -159,6 +161,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             b.Property(x => x.Label).HasMaxLength(200);
             b.Property(x => x.Condition).HasMaxLength(200);
             b.Property(x => x.Protocol).HasMaxLength(80);
+            b.Property(x => x.Color).HasMaxLength(16);
             b.HasIndex(x => x.DiagramId);
             b.HasOne<Diagram>().WithMany(x => x.Edges).HasForeignKey(x => new { x.DiagramId, x.ProjectId })
                 .HasPrincipalKey(x => new { x.ArtifactId, x.ProjectId }).OnDelete(DeleteBehavior.Restrict);

@@ -28,6 +28,18 @@ describe('Prozessprüfung', () => {
     )
     expect(labeled.some((issue) => issue.code === 'unlabeled_exit')).toBe(true)
   })
+
+  it('lässt frei stehende Kommentare ohne Erreichbarkeitshinweis', () => {
+    const issues = analyzeProcess(
+      [
+        { id: 'start', nodeType: 'start', title: 'Start' },
+        { id: 'end', nodeType: 'end', title: 'Ende' },
+        { id: 'note', nodeType: 'note', title: 'Hinweis' },
+      ],
+      [{ id: 'e1', sourceId: 'start', targetId: 'end', condition: 'weiter' }],
+    )
+    expect(issues.some((issue) => issue.nodeId === 'note')).toBe(false)
+  })
 })
 
 describe('Verknüpfungen', () => {

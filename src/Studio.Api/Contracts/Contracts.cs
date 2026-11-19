@@ -89,6 +89,8 @@ public sealed record DiagramNodeResponse(
     string? Technology,
     string? Description,
     string? EventName,
+    string? Color,
+    string? Comment,
     int Version);
 
 public sealed record DiagramEdgeResponse(
@@ -98,7 +100,8 @@ public sealed record DiagramEdgeResponse(
     Guid TargetId,
     string? Label,
     string? Condition,
-    string? Protocol);
+    string? Protocol,
+    string? Color);
 
 public sealed record DiagramResponse(
     Guid Id,
@@ -123,7 +126,9 @@ public sealed record DiagramNodeInput(
     double Y,
     Guid? ComponentId,
     string? Description,
-    string? EventName);
+    string? EventName,
+    string? Color,
+    string? Comment);
 
 public sealed record DiagramEdgeInput(
     Guid Id,
@@ -132,7 +137,8 @@ public sealed record DiagramEdgeInput(
     Guid TargetId,
     string? Label,
     string? Condition,
-    string? Protocol);
+    string? Protocol,
+    string? Color);
 
 public sealed record SaveDiagramRequest(
     int Version,

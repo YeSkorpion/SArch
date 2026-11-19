@@ -58,6 +58,8 @@ export type DiagramNode = {
   technology: string | null
   description: string | null
   eventName: string | null
+  color: string | null
+  comment: string | null
   version: number
 }
 export type DiagramEdge = {
@@ -68,6 +70,7 @@ export type DiagramEdge = {
   label: string | null
   condition: string | null
   protocol: string | null
+  color: string | null
 }
 export type DiagramIssue = { code: string; message: string; nodeId: string | null; edgeId: string | null }
 export type Diagram = DiagramSummary & { nodes: DiagramNode[]; edges: DiagramEdge[]; issues: DiagramIssue[] }

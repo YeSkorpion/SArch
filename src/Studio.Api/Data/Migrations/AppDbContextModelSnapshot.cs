@@ -1181,6 +1181,11 @@ namespace Studio.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Color")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("color");
+
                     b.Property<string>("Condition")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -1241,6 +1246,16 @@ namespace Studio.Api.Data.Migrations
                     b.Property<Guid>("ArtifactId")
                         .HasColumnType("uuid")
                         .HasColumnName("artifact_id");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("color");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("comment");
 
                     b.Property<Guid?>("ComponentId")
                         .HasColumnType("uuid")

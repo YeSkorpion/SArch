@@ -14,7 +14,7 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react'
-import { Circle, Diamond, MoreHorizontal, Octagon, Square, X, Zap } from 'lucide-react'
+import { Circle, Diamond, MoreHorizontal, Octagon, Square, StickyNote, X, Zap } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
@@ -42,10 +42,20 @@ type NodeData = {
   description: string
   eventName: string
   componentId: string | null
+  color: string
+  comment: string
 }
 type FlowNode = Node<NodeData, 'studio'>
-type EdgeData = { kind: EdgeKind; condition: string; protocol: string }
+type EdgeData = { kind: EdgeKind; condition: string; protocol: string; color: string }
 type FlowEdge = Edge<EdgeData>
+
+const tones = [
+  { id: '', label: 'Standard' },
+  { id: 'accent', label: 'Akzent' },
+  { id: 'ok', label: 'Grün' },
+  { id: 'warning', label: 'Gelb' },
+  { id: 'danger', label: 'Rot' },
+] as const
 
 const nodeTypes = { studio: StudioNode }
 
@@ -392,6 +402,8 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
             componentId: node.data.componentId,
             description: node.data.description,
             eventName: node.data.eventName,
+            color: node.data.color || null,
+            comment: node.data.comment || null,
           })),
           edges: edges.map((edge) => ({
             id: edge.id,
@@ -401,6 +413,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
             label: edge.data?.condition || edge.label || '',
             condition: edge.data?.condition ?? '',
             protocol: edge.data?.protocol ?? '',
+            color: edge.data?.color || null,
           })),
         },
       })
@@ -453,7 +466,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
       id,
       type: 'studio',
       position: { x: 80 + current.length * 28, y: 80 + current.length * 16 },
-      data: { nodeType, title: nodeTypeLabel(nodeType), description: '', eventName: '', componentId: null },
+      data: { nodeType, title: nodeType === 'note' ? 'Kommentar' : nodeTypeLabel(nodeType), description: '', eventName: '', componentId: null, color: '', comment: '' },
     }])
     setSelectedId(id)
     setSelectedKind('node')
@@ -467,7 +480,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
       id,
       type: 'studio',
       position: { x: 80 + current.length * 28, y: 120 },
-      data: { nodeType: 'placement', title: component.name, description: component.description, eventName: '', componentId: component.id },
+      data: { nodeType: 'placement', title: component.name, description: component.description, eventName: '', componentId: component.id, color: '', comment: '' },
     }])
     setDirty(true)
   }
@@ -499,7 +512,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
   const shownNodes = nodes.filter((node) => {
     if (listType !== 'alle' && node.data.nodeType !== listType) return false
     if (!listTerm) return true
-    return `${nodeTypeLabel(node.data.nodeType)} ${node.data.title}`.toLowerCase().includes(listTerm)
+    return `${nodeTypeLabel(node.data.nodeType)} ${node.data.title} ${node.data.comment}`.toLowerCase().includes(listTerm)
   })
   const shownEdges = edges.filter((edge) => {
     if (listTerm && !edgeCaption(edge, nodes).toLowerCase().includes(listTerm)) return false
@@ -585,7 +598,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
                 ...connection,
                 id: crypto.randomUUID(),
                 label: '',
-                data: { kind: initial.kind === 'System' ? 'Dependency' : 'Sequence', condition: '', protocol: '' },
+                data: { kind: initial.kind === 'System' ? 'Dependency' : 'Sequence', condition: '', protocol: '', color: '' },
               }, current))
               setDirty(true)
             }}
@@ -703,7 +716,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
                                 source: selectedId,
                                 target: node.id,
                                 label: '',
-                                data: { kind: initial.kind === 'System' ? 'Dependency' : 'Sequence', condition: '', protocol: '' },
+                                data: { kind: initial.kind === 'System' ? 'Dependency' : 'Sequence', condition: '', protocol: '', color: '' },
                               }, current))
                               setDirty(true)
                             }}>Verbinden</Button>
@@ -796,6 +809,7 @@ const processTools = [
   ['decision', Diamond],
   ['event', Zap],
   ['end', Octagon],
+  ['note', StickyNote],
 ] as const
 
 function Palette({ kind, canWrite, components, onProcess, onComponent }: { kind: DiagramKind; canWrite: boolean; components: Component[]; onProcess: (type: string) => void; onComponent: (component: Component) => void }) {
@@ -815,6 +829,12 @@ function Palette({ kind, canWrite, components, onProcess, onComponent }: { kind:
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 border-b border-line p-2">
+        <Button size="sm" className="w-full justify-start" type="button" onClick={() => onProcess('note')}>
+          <StickyNote size={14} aria-hidden="true" />
+          Kommentar
+        </Button>
+      </div>
       <h2 className="shrink-0 px-3 py-2 text-sm font-semibold">Komponenten</h2>
       {components.length === 0 ? <p className="px-3 text-sm text-muted">Lege zuerst eine Komponente an.</p> : (
         <div className="studio-scroll min-h-0 flex-1 px-2 pb-3">
@@ -873,6 +893,10 @@ function Inspector(props: {
         <Field label="Beschreibung">
           <Textarea value={node.data.description} disabled={!props.canWrite} onChange={(event) => props.onNode({ ...node, data: { ...node.data, description: event.target.value } })} />
         </Field>
+        <Field label="Kommentar">
+          <Textarea value={node.data.comment} aria-label="Kommentar" disabled={!props.canWrite} placeholder={node.data.nodeType === 'note' ? 'Hinweis neben dem Ablauf' : 'Notiz an diesem Knoten'} onChange={(event) => props.onNode({ ...node, data: { ...node.data, comment: event.target.value } })} />
+        </Field>
+        <ToneField value={node.data.color} disabled={!props.canWrite} onChange={(color) => props.onNode({ ...node, data: { ...node.data, color } })} />
         {node.data.nodeType === 'event' || node.data.nodeType === 'action' ? (
           <Field label="Ereignisname">
             <Input value={node.data.eventName} disabled={!props.canWrite} onChange={(event) => props.onNode({ ...node, data: { ...node.data, eventName: event.target.value } })} />
@@ -897,24 +921,25 @@ function Inspector(props: {
         <h2 className="font-semibold">Kante</h2>
         {props.kind === 'Process' ? (
           <Field label="Bedingung">
-            <Input value={edge.data?.condition ?? ''} disabled={!props.canWrite} onChange={(event) => props.onEdge({ ...edge, label: event.target.value, data: { kind: 'Sequence', condition: event.target.value, protocol: '' } })} />
+            <Input value={edge.data?.condition ?? ''} disabled={!props.canWrite} onChange={(event) => props.onEdge(paint(edge, { kind: 'Sequence', condition: event.target.value, protocol: '', color: edge.data?.color ?? '' }))} />
           </Field>
         ) : (
           <>
             <Field label="Bezeichnung">
-              <Input value={edge.data?.condition ?? ''} disabled={!props.canWrite} onChange={(event) => props.onEdge({ ...edge, label: event.target.value, data: { kind: edge.data?.kind ?? 'Dependency', condition: event.target.value, protocol: edge.data?.protocol ?? '' } })} />
+              <Input value={edge.data?.condition ?? ''} disabled={!props.canWrite} onChange={(event) => props.onEdge(paint(edge, { kind: edge.data?.kind ?? 'Dependency', condition: event.target.value, protocol: edge.data?.protocol ?? '', color: edge.data?.color ?? '' }))} />
             </Field>
             <Field label="Protokoll">
-              <Input value={edge.data?.protocol ?? ''} disabled={!props.canWrite} onChange={(event) => props.onEdge({ ...edge, data: { kind: edge.data?.kind ?? 'Dependency', condition: edge.data?.condition ?? '', protocol: event.target.value } })} />
+              <Input value={edge.data?.protocol ?? ''} disabled={!props.canWrite} onChange={(event) => props.onEdge(paint(edge, { kind: edge.data?.kind ?? 'Dependency', condition: edge.data?.condition ?? '', protocol: event.target.value, color: edge.data?.color ?? '' }))} />
             </Field>
             <Field label="Art">
-              <Select value={edge.data?.kind ?? 'Dependency'} disabled={!props.canWrite} onChange={(event) => props.onEdge({ ...edge, data: { kind: event.target.value as EdgeKind, condition: edge.data?.condition ?? '', protocol: edge.data?.protocol ?? '' } })}>
+              <Select value={edge.data?.kind ?? 'Dependency'} disabled={!props.canWrite} onChange={(event) => props.onEdge(paint(edge, { kind: event.target.value as EdgeKind, condition: edge.data?.condition ?? '', protocol: edge.data?.protocol ?? '', color: edge.data?.color ?? '' }))}>
                 <option value="Dependency">Abhängigkeit</option>
                 <option value="DataFlow">Datenfluss</option>
               </Select>
             </Field>
           </>
         )}
+        <ToneField value={edge.data?.color ?? ''} disabled={!props.canWrite} onChange={(color) => props.onEdge(paint(edge, { kind: edge.data?.kind ?? (props.kind === 'Process' ? 'Sequence' : 'Dependency'), condition: edge.data?.condition ?? '', protocol: edge.data?.protocol ?? '', color }))} />
         {props.canWrite ? <Button type="button" onClick={() => props.onDeleteEdge(edge.id)}>Kante entfernen</Button> : null}
       </div>
     )
@@ -934,13 +959,40 @@ function Inspector(props: {
 function StudioNode({ data, selected }: NodeProps<FlowNode>) {
   const shape = data.nodeType === 'start' || data.nodeType === 'end' ? 'rounded-full' : data.nodeType === 'decision' ? 'rounded-md border-dashed' : data.nodeType === 'event' ? 'rounded-md border-double' : 'rounded-md'
   return (
-    <div className={`min-w-40 border bg-card px-3 py-2 text-sm shadow-sm ${shape} ${selected ? 'border-accent ring-2 ring-accent' : 'border-line'} ${data.nodeType === 'placement' ? 'border-l-4 border-l-accent' : ''}`}>
+    <div className={`studio-node min-w-40 border bg-card px-3 py-2 text-sm shadow-sm ${shape} ${data.nodeType === 'note' ? 'is-note' : ''} ${selected ? 'ring-2 ring-accent' : 'border-line'} ${data.nodeType === 'placement' && !data.color ? 'border-l-4 border-l-accent' : ''}`} data-tone={data.color || undefined}>
       <Handle type="target" position={Position.Left} />
       <div className="text-[10px] font-medium uppercase tracking-wide text-muted">{nodeTypeLabel(data.nodeType)}</div>
       <div className="font-medium break-words">{data.title || 'Ohne Titel'}</div>
+      {data.comment ? <p className="mt-1 line-clamp-3 text-xs leading-snug text-muted">{data.comment}</p> : null}
       <Handle type="source" position={Position.Right} />
     </div>
   )
+}
+
+function ToneField({ value, disabled, onChange }: { value: string; disabled: boolean; onChange: (color: string) => void }) {
+  return (
+    <div className="grid gap-1">
+      <span className="text-sm" id="diagramm-farbe">Farbe</span>
+      <div className="flex flex-wrap gap-1" role="group" aria-labelledby="diagramm-farbe">
+        {tones.map((tone) => (
+          <button
+            key={tone.id || 'standard'}
+            className={`studio-tone tone-${tone.id || 'standard'}`}
+            type="button"
+            aria-pressed={value === tone.id}
+            disabled={disabled}
+            onClick={() => onChange(tone.id)}
+          >
+            {tone.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function paint(edge: FlowEdge, data: EdgeData): FlowEdge {
+  return { ...edge, label: data.condition, className: data.color ? `tone-${data.color}` : undefined, data }
 }
 
 function readPane(key: string, fallback: number) {
@@ -968,7 +1020,7 @@ function dragPane(event: ReactPointerEvent, axis: 'x' | 'y', direction: 1 | -1, 
 }
 
 function listTypeRank(type: string) {
-  const order = ['start', 'event', 'action', 'decision', 'end', 'placement']
+  const order = ['start', 'event', 'action', 'decision', 'end', 'note', 'placement']
   const index = order.indexOf(type)
   return index === -1 ? order.length : index
 }
@@ -992,6 +1044,8 @@ function toNode(node: Diagram['nodes'][number], selectedId?: string | null): Flo
       description: node.description ?? '',
       eventName: node.eventName ?? '',
       componentId: node.componentId,
+      color: node.color ?? '',
+      comment: node.comment ?? '',
     },
   }
 }
@@ -1003,7 +1057,8 @@ function toEdge(edge: Diagram['edges'][number]): FlowEdge {
     target: edge.targetId,
     label: edge.condition || edge.label || '',
     interactionWidth: 20,
-    data: { kind: edge.kind, condition: edge.condition || edge.label || '', protocol: edge.protocol ?? '' },
+    className: edge.color ? `tone-${edge.color}` : undefined,
+    data: { kind: edge.kind, condition: edge.condition || edge.label || '', protocol: edge.protocol ?? '', color: edge.color ?? '' },
   }
 }
 

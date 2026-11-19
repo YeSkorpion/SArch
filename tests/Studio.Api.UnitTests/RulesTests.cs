@@ -51,6 +51,28 @@ public class DiagramRulesTests
     }
 
     [Fact]
+    public void Notes_are_allowed_and_do_not_count_as_unreachable()
+    {
+        var start = Guid.NewGuid();
+        var end = Guid.NewGuid();
+        var note = Guid.NewGuid();
+        var nodes = new[] { Node(start, "start", "Start"), Node(end, "end", "Ende"), Node(note, "note", "Hinweis") };
+        var edges = new[] { Edge(start, end, "weiter") };
+        Assert.Empty(DiagramRules.ValidateStructure(DiagramKind.Process, nodes, edges));
+        var issues = DiagramRules.Analyze(DiagramKind.Process, nodes, edges);
+        Assert.DoesNotContain(issues, issue => issue.NodeId == note);
+    }
+
+    [Fact]
+    public void Unknown_color_is_rejected()
+    {
+        var start = Guid.NewGuid();
+        var node = Node(start, "start", "Start") with { Color = "pink" };
+        var errors = DiagramRules.ValidateStructure(DiagramKind.Process, [node], []);
+        Assert.Contains(errors, error => error.Contains("Farbe", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void System_node_requires_a_component()
     {
         var errors = DiagramRules.ValidateStructure(DiagramKind.System, [Node(Guid.NewGuid(), "placement", "")], []);

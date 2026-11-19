@@ -208,6 +208,8 @@ public sealed class TransferNode
     public Guid? ComponentId { get; set; }
     public string? Description { get; set; }
     public string? EventName { get; set; }
+    public string? Color { get; set; }
+    public string? Comment { get; set; }
 }
 
 public sealed class TransferEdge
@@ -220,6 +222,7 @@ public sealed class TransferEdge
     public string? Label { get; set; }
     public string? Condition { get; set; }
     public string? Protocol { get; set; }
+    public string? Color { get; set; }
 }
 
 public sealed class TransferComponent

@@ -656,3 +656,50 @@ nav[aria-label='Projekt'] a:hover > svg {
     scroll-behavior: auto !important;
   }
 }
+
+.studio-tone {
+  height: 1.75rem;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 999px;
+  background: var(--card);
+  padding: 0 0.7rem;
+  font-size: 0.75rem;
+}
+
+.studio-tone[aria-pressed='true'] {
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.studio-tone.tone-standard { border-left-color: var(--muted); }
+.studio-tone.tone-accent { border-left-color: var(--accent); }
+.studio-tone.tone-ok { border-left-color: var(--ok); }
+.studio-tone.tone-warning { border-left-color: var(--warning); }
+.studio-tone.tone-danger { border-left-color: var(--danger); }
+
+.studio-node[data-tone='accent'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--card)); }
+.studio-node[data-tone='ok'] { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, var(--card)); }
+.studio-node[data-tone='warning'] { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, var(--card)); }
+.studio-node[data-tone='danger'] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, var(--card)); }
+
+.studio-node.is-note {
+  max-width: 16rem;
+  border-style: dashed;
+}
+
+.studio-node.is-note:not([data-tone]) {
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, var(--card));
+}
+
+.react-flow__edge.tone-accent .react-flow__edge-path { stroke: var(--accent); }
+.react-flow__edge.tone-ok .react-flow__edge-path { stroke: var(--ok); }
+.react-flow__edge.tone-warning .react-flow__edge-path { stroke: var(--warning); }
+.react-flow__edge.tone-danger .react-flow__edge-path { stroke: var(--danger); }
+.react-flow__edge.tone-accent .react-flow__edge-text { fill: var(--accent); }
+.react-flow__edge.tone-ok .react-flow__edge-text { fill: var(--ok); }
+.react-flow__edge.tone-warning .react-flow__edge-text { fill: var(--warning); }
+.react-flow__edge.tone-danger .react-flow__edge-text { fill: var(--danger); }

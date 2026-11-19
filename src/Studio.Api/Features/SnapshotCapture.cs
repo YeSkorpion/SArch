@@ -86,6 +86,8 @@ public static class SnapshotCapture
                 AreaName = areaId is Guid area ? areas.GetValueOrDefault(area) : null,
                 X = item.PositionX,
                 Y = item.PositionY,
+                Color = item.Color,
+                Comment = item.Comment,
             });
         }
 
@@ -104,6 +106,7 @@ public static class SnapshotCapture
                 SourceId = item.SourceNodeId,
                 TargetId = item.TargetNodeId,
                 DiagramId = item.DiagramId,
+                Color = item.Color,
             });
         }
 

@@ -160,7 +160,7 @@ export function DiagramSvg({ diagram, kind }: { diagram: Diagram; kind: 'Process
             y1={source.y + nodeHeight / 2}
             x2={target.x + nodeWidth / 2}
             y2={target.y + nodeHeight / 2}
-            stroke="var(--muted)"
+            stroke={toneStroke(edge.color) ?? 'var(--muted)'}
             strokeWidth="1.5"
           />
         )
@@ -183,7 +183,16 @@ function NodeShape({ node, system }: { node: DiagramNode; system: boolean }) {
   if (system && kind === 'queue') {
     return <polygon points={`${node.x + 10},${node.y + 8} ${node.x + nodeWidth},${node.y + 8} ${node.x + nodeWidth - 10},${node.y + 28} ${node.x},${node.y + 28}`} fill="var(--card)" stroke="var(--accent)" />
   }
-  const fill = node.nodeType === 'decision' ? 'var(--warning)' : node.nodeType === 'event' ? 'var(--accent)' : 'var(--card)'
-  const opacity = node.nodeType === 'decision' || node.nodeType === 'event' ? 0.35 : 1
-  return <rect x={node.x} y={node.y + 4} width={nodeWidth} height={28} rx={node.nodeType === 'start' || node.nodeType === 'end' ? 14 : 6} fill={fill} fillOpacity={opacity} stroke={system ? 'var(--accent)' : 'var(--line)'} />
+  const tint = toneStroke(node.color)
+  const fill = tint ?? (node.nodeType === 'decision' ? 'var(--warning)' : node.nodeType === 'event' ? 'var(--accent)' : 'var(--card)')
+  const opacity = tint ? 0.35 : node.nodeType === 'decision' || node.nodeType === 'event' ? 0.35 : 1
+  return <rect x={node.x} y={node.y + 4} width={nodeWidth} height={28} rx={node.nodeType === 'start' || node.nodeType === 'end' ? 14 : 6} fill={fill} fillOpacity={opacity} stroke={tint ?? (node.nodeType === 'note' ? 'var(--warning)' : system ? 'var(--accent)' : 'var(--line)')} strokeDasharray={node.nodeType === 'note' ? '3 2' : undefined} />
+}
+
+function toneStroke(color: string | null) {
+  if (color === 'accent') return 'var(--accent)'
+  if (color === 'ok') return 'var(--ok)'
+  if (color === 'warning') return 'var(--warning)'
+  if (color === 'danger') return 'var(--danger)'
+  return null
 }

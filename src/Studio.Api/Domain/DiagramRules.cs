@@ -8,7 +8,9 @@ public sealed record DiagramNodeDraft(
     double Y,
     Guid? ComponentId,
     string? Description,
-    string? EventName);
+    string? EventName,
+    string? Color = null,
+    string? Comment = null);
 
 public sealed record DiagramEdgeDraft(
     Guid Id,
@@ -17,7 +19,8 @@ public sealed record DiagramEdgeDraft(
     Guid TargetId,
     string? Label,
     string? Condition,
-    string? Protocol);
+    string? Protocol,
+    string? Color = null);
 
 public sealed record DiagramIssue(string Code, string Message, Guid? NodeId, Guid? EdgeId);
 
@@ -26,7 +29,8 @@ public static class DiagramRules
     public const int MaxNodes = 400;
     public const int MaxEdges = 800;
 
-    private static readonly HashSet<string> ProcessTypes = ["start", "action", "decision", "event", "end"];
+    private static readonly HashSet<string> ProcessTypes = ["start", "action", "decision", "event", "end", "note"];
+    private static readonly HashSet<string> Tones = ["accent", "ok", "warning", "danger"];
 
     public static IReadOnlyList<string> ValidateStructure(
         DiagramKind kind,
@@ -68,6 +72,16 @@ public static class DiagramRules
                 errors.Add($"Der Ereignisname von „{Trim(node.Title)}“ ist zu lang.");
             }
 
+            if (node.Comment is { Length: > 500 })
+            {
+                errors.Add($"Der Kommentar von „{Trim(node.Title)}“ ist zu lang.");
+            }
+
+            if (BadTone(node.Color))
+            {
+                errors.Add($"Die Farbe von „{Trim(node.Title)}“ ist nicht zulässig.");
+            }
+
             if (kind == DiagramKind.Process)
             {
                 if (!ProcessTypes.Contains(node.NodeType))
@@ -85,11 +99,18 @@ public static class DiagramRules
                     errors.Add("Prozessknoten verweisen nicht auf Komponenten.");
                 }
             }
+            else if (node.NodeType == "note")
+            {
+                if (node.ComponentId is not null)
+                {
+                    errors.Add("Kommentare verweisen nicht auf Komponenten.");
+                }
+            }
             else
             {
                 if (node.NodeType != "placement")
                 {
-                    errors.Add("Systemdiagramme enthalten nur Komponentenplatzierungen.");
+                    errors.Add("Systemdiagramme enthalten nur Komponentenplatzierungen und Kommentare.");
                 }
 
                 if (node.ComponentId is null || node.ComponentId == Guid.Empty)
@@ -127,6 +148,11 @@ public static class DiagramRules
             if (edge.Label is { Length: > 200 } || edge.Condition is { Length: > 200 } || edge.Protocol is { Length: > 80 })
             {
                 errors.Add("Eine Kantenbeschriftung ist zu lang.");
+            }
+
+            if (BadTone(edge.Color))
+            {
+                errors.Add("Die Farbe einer Kante ist nicht zulässig.");
             }
 
             if (!string.IsNullOrWhiteSpace(edge.Protocol) && edge.Protocol.Any(ch => !(char.IsLetterOrDigit(ch) || ch is ' ' or '/' or '+' or '.' or '-' or '_')))
@@ -188,7 +214,7 @@ public static class DiagramRules
                 }
             }
 
-            foreach (var node in nodes.Where(node => !seen.Contains(node.Id)))
+            foreach (var node in nodes.Where(node => node.NodeType != "note" && !seen.Contains(node.Id)))
             {
                 issues.Add(new DiagramIssue(
                     "unreachable",
@@ -224,6 +250,8 @@ public static class DiagramRules
     }
 
     public static bool IsProcessStep(string nodeType) => nodeType is "action" or "decision" or "event";
+
+    private static bool BadTone(string? color) => !string.IsNullOrWhiteSpace(color) && !Tones.Contains(color.Trim());
 
     private static string Trim(string? value)
     {

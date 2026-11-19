@@ -34,6 +34,8 @@ public sealed class SnapshotArtifact
     public Guid? TargetId { get; set; }
     public string? Label { get; set; }
     public string? Condition { get; set; }
+    public string? Color { get; set; }
+    public string? Comment { get; set; }
 }
 
 public sealed class SnapshotLink
@@ -141,6 +143,8 @@ public static class SnapshotDiff
         var fields = new List<string>();
         if (before.Title != after.Title) fields.Add("Titel");
         if (before.Status != after.Status) fields.Add("Status");
+        if (before.Comment != after.Comment) fields.Add("Kommentar");
+        if (before.Color != after.Color) fields.Add("Farbe");
         if (before.Content != after.Content || before.ContentJson != after.ContentJson || before.WireframeJson != after.WireframeJson || before.Kind != after.Kind || before.NodeType != after.NodeType || before.Label != after.Label || before.Condition != after.Condition || before.SourceId != after.SourceId || before.TargetId != after.TargetId || before.DiagramId != after.DiagramId || before.AreaId != after.AreaId)
         {
             fields.Add("Inhalt");
