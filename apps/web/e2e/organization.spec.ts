@@ -6,8 +6,9 @@ test('zwei Abläufe derselben Komponente sind vom Überblick aus erreichbar', as
   test.skip(info.project.name !== 'desktop', 'Die grafische Bearbeitung ist für den Desktop ausgelegt.')
   test.setTimeout(180_000)
   await register(page, `bereiche-${Date.now()}@example.com`)
-  await page.getByLabel('Name').fill('Großprojekt')
   await page.getByRole('button', { name: 'Projekt anlegen' }).click()
+  await page.getByRole('dialog').getByLabel('Name').fill('Großprojekt')
+  await page.getByRole('dialog').getByRole('button', { name: 'Projekt anlegen' }).click()
   await expect(page.getByRole('heading', { name: 'Großprojekt' })).toBeVisible()
 
   await openSection(page, 'Bereiche')

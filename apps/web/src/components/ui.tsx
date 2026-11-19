@@ -396,12 +396,12 @@ export function ConfirmDialog({
   )
 }
 
-export function Menu({ trigger, children }: { trigger: ReactNode; children: ReactNode }) {
+export function Menu({ trigger, children, className }: { trigger: ReactNode; children: ReactNode; className?: string }) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className="studio-menu z-50 min-w-48 overflow-hidden rounded-lg border border-line bg-card p-1 shadow-overlay" sideOffset={6}>
+        <DropdownMenu.Content className={cn('studio-menu z-50 min-w-48 overflow-hidden rounded-lg border border-line bg-card p-1 shadow-overlay', className)} sideOffset={6}>
           {children}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -411,7 +411,7 @@ export function Menu({ trigger, children }: { trigger: ReactNode; children: Reac
 
 export function MenuItem({ children, onSelect }: { children: ReactNode; onSelect: () => void }) {
   return (
-    <DropdownMenu.Item className="cursor-pointer rounded-md px-2.5 py-1.5 text-sm outline-none data-[highlighted]:bg-accent/15 data-[highlighted]:text-accent" onSelect={onSelect}>
+    <DropdownMenu.Item className="cursor-pointer rounded-md px-2 py-1 text-sm outline-none data-[highlighted]:bg-accent/15 data-[highlighted]:text-accent" onSelect={onSelect}>
       {children}
     </DropdownMenu.Item>
   )

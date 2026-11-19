@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Brand } from '../../components/Brand'
-import { Badge, Button, Field, Input, Select } from '../../components/ui'
+import { Badge, Button, Field, Input, Modal, Select } from '../../components/ui'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
 import { api, errorText } from '../../lib/api'
 import { cn } from '../../lib/cn'
@@ -21,6 +21,7 @@ export function ProjectsPage({ user }: { user: User }) {
   const client = useQueryClient()
   const navigate = useNavigate()
   const projects = useQuery({ queryKey: ['projects'], queryFn: () => api<Project[]>('/api/v1/projects') })
+  const [createOpen, setCreateOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [query, setQuery] = useState('')
@@ -76,13 +77,15 @@ export function ProjectsPage({ user }: { user: User }) {
             <p className="truncate text-sm text-muted">Angemeldet als {user.displayName}</p>
           </div>
         </div>
-        <Button size="sm" type="button" onClick={() => logout.mutate()}>Abmelden</Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="primary" onClick={() => { setName(''); setDescription(''); setCreateOpen(true) }}>Projekt anlegen</Button>
+          <Button size="sm" type="button" onClick={() => logout.mutate()}>Abmelden</Button>
+        </div>
       </header>
 
-      <section className="rounded-xl border border-line bg-card p-4">
-        <h2 className="text-base font-semibold">Neues Projekt</h2>
+      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Neues Projekt" description="Name und Beschreibung reichen für den Start.">
         <form
-          className="mt-3 grid gap-3 md:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)_auto] md:items-end"
+          className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault()
             create.mutate()
@@ -94,10 +97,13 @@ export function ProjectsPage({ user }: { user: User }) {
           <Field label="Beschreibung">
             <Input value={description} onChange={(event) => setDescription(event.target.value)} />
           </Field>
-          <Button className="w-full md:w-auto" type="submit" variant="primary" disabled={create.isPending}>Projekt anlegen</Button>
+          {create.isError ? <p role="alert" className="text-sm text-danger">{errorText(create.error)}</p> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => setCreateOpen(false)}>Abbrechen</Button>
+            <Button type="submit" variant="primary" disabled={create.isPending}>Projekt anlegen</Button>
+          </div>
         </form>
-        {create.isError ? <p role="alert" className="mt-3 text-sm text-danger">{errorText(create.error)}</p> : null}
-      </section>
+      </Modal>
 
       <ImportProject onImported={(id) => void navigate(`/projekte/${id}`)} />
 

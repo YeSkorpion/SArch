@@ -12,8 +12,9 @@ test('Anmeldung, Anforderung und leere Zustände', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Registrieren' }).click()
   await expect(page.getByRole('heading', { name: 'Projekte' })).toBeVisible()
 
-  await page.getByLabel('Name').fill(`Portal ${info.project.name}`)
   await page.getByRole('button', { name: 'Projekt anlegen' }).click()
+  await page.getByRole('dialog').getByLabel('Name').fill(`Portal ${info.project.name}`)
+  await page.getByRole('dialog').getByRole('button', { name: 'Projekt anlegen' }).click()
   await expect(page.getByRole('heading', { name: `Portal ${info.project.name}` })).toBeVisible()
 
   if (info.project.name === 'mobile') {

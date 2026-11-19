@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Boxes,
   Cable,
@@ -64,6 +64,14 @@ export function Shell({ user }: { user: User }) {
     enabled: Boolean(projectId),
   })
   const navigate = useNavigate()
+  const client = useQueryClient()
+  const logout = useMutation({
+    mutationFn: () => api('/api/v1/auth/logout', { method: 'POST' }),
+    onSuccess: async () => {
+      client.setQueryData(['me'], null)
+      await navigate('/anmelden')
+    },
+  })
   const location = useLocation()
   const diagramId = location.pathname.match(/\/diagramme\/([^/?]+)/)?.[1]
   const diagram = useQuery({
@@ -149,19 +157,10 @@ export function Shell({ user }: { user: User }) {
               ))}
             </div>
           ) : null}
-          <Button
-            size="sm"
-            type="button"
-            onClick={() => {
-              const dark = document.documentElement.classList.toggle('dark')
-              localStorage.setItem('studio-theme', dark ? 'dark' : 'light')
-            }}
-          >
-            Darstellung
-          </Button>
-          <Menu trigger={<PersonButton name={user.displayName} role={roleLabel(current.role)} />}>
-            <p className="px-2 py-1 text-xs text-muted">{user.email}</p>
-            <MenuItem onSelect={() => void navigate(`/projekte/${current.id}/einstellungen`)}>Projekteinstellungen</MenuItem>
+          <ThemeButton />
+          <Menu className="min-w-44 p-1" trigger={<PersonButton name={user.displayName} role={roleLabel(current.role)} />}>
+            <p className="truncate px-2 py-0.5 text-xs text-muted">{user.email}</p>
+            <MenuItem onSelect={() => logout.mutate()}>Abmelden</MenuItem>
           </Menu>
         </header>
         <WorkspaceTabs tabs={tabs.tabs} activeId={tabs.activeId} onSelect={tabs.select} onClose={tabs.close} onNew={() => tabs.openNew(`/projekte/${current.id}`)} />
@@ -200,13 +199,53 @@ function accountInitials(name: string) {
   return name.trim().slice(0, 2).toUpperCase() || '?'
 }
 
+function ThemeButton() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
+  return (
+    <Button
+      size="sm"
+      className="theme-toggle h-8 w-8 px-0"
+      type="button"
+      aria-label="Darstellung"
+      onClick={() => {
+        const next = document.documentElement.classList.toggle('dark')
+        localStorage.setItem('studio-theme', next ? 'dark' : 'light')
+        setDark(next)
+      }}
+    >
+      {dark ? <DarkThemeIcon /> : <LightThemeIcon />}
+    </Button>
+  )
+}
+
+function LightThemeIcon() {
+  return (
+    <svg className="theme-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+      <g className="theme-sun-rays">
+        <path d="M12 2V4M12 20V22M4 12H2M6.31412 6.31412L4.8999 4.8999M17.6859 6.31412L19.1001 4.8999M6.31412 17.69L4.8999 19.1042M17.6859 17.69L19.1001 19.1042M22 12H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+      <circle className="theme-sun-core" cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  )
+}
+
+function DarkThemeIcon() {
+  return (
+    <svg className="theme-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+      <path className="theme-moon" d="M16.5 13C19.0768 13 21.2397 11.228 21.8366 8.83604C21.4087 8.94287 20.961 8.99958 20.5 8.99958C17.4624 8.99958 15 6.53715 15 3.49958C15 3.03881 15.0567 2.59128 15.1634 2.16357C12.7717 2.76068 11 4.92345 11 7.50003C11 8.41275 11.2223 9.27355 11.6158 10.0312" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path className="theme-star" d="M5 7V3M3 5H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path className="theme-cloud" d="M6 22C3.79086 22 2 20.2091 2 18C2 16.0221 3.43551 14.3796 5.32148 14.0573C6.12876 11.697 8.3662 10 11 10C13.2882 10 15.2772 11.2809 16.2892 13.1648C16.6744 13.0574 17.0805 13 17.5 13C19.9853 13 22 15.0147 22 17.5C22 19.9853 19.9853 22 17.5 22C13.6667 22 9.83333 22 6 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 const PersonButton = forwardRef<HTMLButtonElement, { name: string; role: string } & ButtonHTMLAttributes<HTMLButtonElement>>(function PersonButton({ name, role, ...props }, ref) {
   return (
-    <button ref={ref} {...props} className="flex max-w-56 items-center gap-2 rounded-full border border-line bg-card py-1 pr-3 pl-1 text-left hover:border-accent/40" type="button" aria-label={`${name}, ${role}`}>
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground" aria-hidden="true">{accountInitials(name)}</span>
-      <span className="hidden min-w-0 lg:grid">
-        <span className="truncate text-sm font-medium leading-tight">{name}</span>
-        <span className="truncate text-xs leading-tight text-muted">{role}</span>
+    <button ref={ref} {...props} className="flex max-w-48 items-center gap-1.5 rounded-full border border-line bg-card py-0.5 pr-2.5 pl-0.5 text-left hover:border-accent/40" type="button" aria-label={`${name}, ${role}`}>
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-[11px] font-semibold text-accent-foreground" aria-hidden="true">{accountInitials(name)}</span>
+      <span className="hidden min-w-0 leading-none lg:block">
+        <span className="block truncate text-sm font-medium">{name}</span>
+        <span className="block truncate text-xs text-muted">{role}</span>
       </span>
     </button>
   )
