@@ -29,7 +29,7 @@ public static class DiagramRules
     public const int MaxNodes = 400;
     public const int MaxEdges = 800;
 
-    private static readonly HashSet<string> ProcessTypes = ["start", "action", "decision", "event", "end", "note"];
+    private static readonly HashSet<string> ProcessTypes = ["start", "action", "decision", "event", "end", "note", "source"];
     private static readonly HashSet<string> Tones = ["accent", "ok", "warning", "danger"];
 
     public static IReadOnlyList<string> ValidateStructure(
@@ -99,18 +99,20 @@ public static class DiagramRules
                     errors.Add("Prozessknoten verweisen nicht auf Komponenten.");
                 }
             }
-            else if (node.NodeType == "note")
+            else if (node.NodeType is "note" or "source")
             {
                 if (node.ComponentId is not null)
                 {
-                    errors.Add("Kommentare verweisen nicht auf Komponenten.");
+                    errors.Add(node.NodeType == "note"
+                        ? "Kommentare verweisen nicht auf Komponenten."
+                        : "Datenquellen verweisen nicht auf Komponenten.");
                 }
             }
             else
             {
                 if (node.NodeType != "placement")
                 {
-                    errors.Add("Systemdiagramme enthalten nur Komponentenplatzierungen und Kommentare.");
+                    errors.Add("Systemdiagramme enthalten nur Komponentenplatzierungen, Kommentare und Datenquellen.");
                 }
 
                 if (node.ComponentId is null || node.ComponentId == Guid.Empty)
@@ -214,7 +216,7 @@ public static class DiagramRules
                 }
             }
 
-            foreach (var node in nodes.Where(node => node.NodeType != "note" && !seen.Contains(node.Id)))
+            foreach (var node in nodes.Where(node => node.NodeType is not ("note" or "source") && !seen.Contains(node.Id)))
             {
                 issues.Add(new DiagramIssue(
                     "unreachable",

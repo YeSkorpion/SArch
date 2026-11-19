@@ -41,6 +41,7 @@ export function nodeTypeLabel(nodeType: string) {
   if (nodeType === 'event') return 'Ereignis'
   if (nodeType === 'end') return 'Ende'
   if (nodeType === 'note') return 'Kommentar'
+  if (nodeType === 'source') return 'Datenquelle'
   if (nodeType === 'placement') return 'Komponente'
   return nodeType
 }

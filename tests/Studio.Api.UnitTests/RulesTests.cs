@@ -56,11 +56,18 @@ public class DiagramRulesTests
         var start = Guid.NewGuid();
         var end = Guid.NewGuid();
         var note = Guid.NewGuid();
-        var nodes = new[] { Node(start, "start", "Start"), Node(end, "end", "Ende"), Node(note, "note", "Hinweis") };
+        var source = Guid.NewGuid();
+        var nodes = new[]
+        {
+            Node(start, "start", "Start"),
+            Node(end, "end", "Ende"),
+            Node(note, "note", "Hinweis"),
+            Node(source, "source", "Datenquelle"),
+        };
         var edges = new[] { Edge(start, end, "weiter") };
         Assert.Empty(DiagramRules.ValidateStructure(DiagramKind.Process, nodes, edges));
         var issues = DiagramRules.Analyze(DiagramKind.Process, nodes, edges);
-        Assert.DoesNotContain(issues, issue => issue.NodeId == note);
+        Assert.DoesNotContain(issues, issue => issue.NodeId == note || issue.NodeId == source);
     }
 
     [Fact]

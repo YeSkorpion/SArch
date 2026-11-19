@@ -35,10 +35,11 @@ describe('Prozessprüfung', () => {
         { id: 'start', nodeType: 'start', title: 'Start' },
         { id: 'end', nodeType: 'end', title: 'Ende' },
         { id: 'note', nodeType: 'note', title: 'Hinweis' },
+        { id: 'source', nodeType: 'source', title: 'Datenquelle' },
       ],
       [{ id: 'e1', sourceId: 'start', targetId: 'end', condition: 'weiter' }],
     )
-    expect(issues.some((issue) => issue.nodeId === 'note')).toBe(false)
+    expect(issues.some((issue) => issue.nodeId === 'note' || issue.nodeId === 'source')).toBe(false)
   })
 })
 

@@ -186,7 +186,7 @@ function NodeShape({ node, system }: { node: DiagramNode; system: boolean }) {
   const tint = toneStroke(node.color)
   const fill = tint ?? (node.nodeType === 'decision' ? 'var(--warning)' : node.nodeType === 'event' ? 'var(--accent)' : 'var(--card)')
   const opacity = tint ? 0.35 : node.nodeType === 'decision' || node.nodeType === 'event' ? 0.35 : 1
-  return <rect x={node.x} y={node.y + 4} width={nodeWidth} height={28} rx={node.nodeType === 'start' || node.nodeType === 'end' ? 14 : 6} fill={fill} fillOpacity={opacity} stroke={tint ?? (node.nodeType === 'note' ? 'var(--warning)' : system ? 'var(--accent)' : 'var(--line)')} strokeDasharray={node.nodeType === 'note' ? '3 2' : undefined} />
+  return <rect x={node.x} y={node.y + 4} width={nodeWidth} height={28} rx={node.nodeType === 'start' || node.nodeType === 'end' ? 14 : 6} fill={fill} fillOpacity={opacity} stroke={tint ?? (node.nodeType === 'note' ? 'var(--warning)' : node.nodeType === 'source' || system ? 'var(--accent)' : 'var(--line)')} strokeDasharray={node.nodeType === 'note' ? '3 2' : undefined} />
 }
 
 function toneStroke(color: string | null) {

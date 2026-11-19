@@ -14,8 +14,8 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react'
-import { Circle, Diamond, MoreHorizontal, Octagon, Square, StickyNote, X, Zap } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { Circle, Database, Diamond, MoreHorizontal, Octagon, Square, StickyNote, X, Zap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router'
 import { LeaveGuard } from '../../components/LeaveGuard'
 import { DiagramSvg, EmptyPreview, PreviewFrame, diagramStepCount, useDiagramPreview, useInView } from '../../components/previews'
@@ -459,30 +459,66 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
     setDirty(true)
   }
 
-  function addProcessNode(nodeType: string) {
+  function addProcessNode(nodeType: string, position: { x: number; y: number }) {
     remember()
     const id = crypto.randomUUID()
+    const title = nodeType === 'note' ? 'Kommentar' : nodeType === 'source' ? 'Datenquelle' : nodeTypeLabel(nodeType)
     setNodes((current) => [...current, {
       id,
       type: 'studio',
-      position: { x: 80 + current.length * 28, y: 80 + current.length * 16 },
-      data: { nodeType, title: nodeType === 'note' ? 'Kommentar' : nodeTypeLabel(nodeType), description: '', eventName: '', componentId: null, color: '', comment: '' },
+      position,
+      data: { nodeType, title, description: '', eventName: '', componentId: null, color: '', comment: '' },
     }])
     setSelectedId(id)
     setSelectedKind('node')
     setDirty(true)
   }
 
-  function addPlacement(component: Component) {
+  function addPlacement(component: Component, position: { x: number; y: number }) {
     remember()
     const id = crypto.randomUUID()
     setNodes((current) => [...current, {
       id,
       type: 'studio',
-      position: { x: 80 + current.length * 28, y: 120 },
+      position,
       data: { nodeType: 'placement', title: component.name, description: component.description, eventName: '', componentId: component.id, color: '', comment: '' },
     }])
+    setSelectedId(id)
+    setSelectedKind('node')
     setDirty(true)
+  }
+
+  function requestDeleteNode(id: string) {
+    if (!initial.nodes.some((node) => node.id === id)) {
+      removeNode(id)
+      return
+    }
+    setPendingDelete(id)
+  }
+
+  function dropPosition(event: ReactDragEvent) {
+    const point = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+    return { x: point.x - 72, y: point.y - 20 }
+  }
+
+  function onCanvasDragOver(event: ReactDragEvent) {
+    if (!canWrite || !Array.from(event.dataTransfer.types).includes(toolMime)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  function onCanvasDrop(event: ReactDragEvent) {
+    const payload = event.dataTransfer.getData(toolMime)
+    if (!canWrite || !payload) return
+    event.preventDefault()
+    const position = dropPosition(event)
+    if (payload.startsWith('node:')) {
+      addProcessNode(payload.slice('node:'.length), position)
+      return
+    }
+    if (!payload.startsWith('component:')) return
+    const component = (components.data ?? []).find((item) => item.id === payload.slice('component:'.length))
+    if (component) addPlacement(component, position)
   }
 
   function removeNode(id: string) {
@@ -501,6 +537,10 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
         event.preventDefault()
         if (event.shiftKey) redo()
         else undo()
+      }
+      if (event.key === 'Delete' && !event.repeat && canWrite && !pendingDelete && !diagramDelete && selectedKind === 'node' && selectedId) {
+        event.preventDefault()
+        requestDeleteNode(selectedId)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -567,17 +607,15 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
         {toolsOpen ? (
           <aside aria-label="Werkzeuge" className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-line bg-nav" style={{ width: toolsWidth }}>
             <button className="absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize hover:bg-accent/50" type="button" aria-label="Breite der Werkzeuge ändern" onPointerDown={(event) => dragPane(event, 'x', 1, toolsWidth, 200, 420, setToolsWidth, 'studio-pane-tools-dock')} />
-            <Palette kind={initial.kind} canWrite={canWrite} components={components.data ?? []} onProcess={addProcessNode} onComponent={addPlacement} />
+            <Palette kind={initial.kind} canWrite={canWrite} components={components.data ?? []} />
           </aside>
         ) : null}
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1" onDragOver={onCanvasDragOver} onDrop={onCanvasDrop}>
           {toolsOpen ? null : (
             <Button className="absolute left-3 top-3 z-10" size="sm" type="button" onClick={() => { setToolsOpen(true); rememberFlag('studio-panel-tools', true) }}>Werkzeuge</Button>
           )}
           {initial.kind === 'Process' && nodes.length === 0 && canWrite ? (
-            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-              <Button className="pointer-events-auto" type="button" variant="primary" onClick={() => addProcessNode('start')}>Startknoten hinzufügen</Button>
-            </div>
+            <p className="pointer-events-none absolute inset-x-0 top-8 z-10 px-6 text-center text-sm text-muted">Ziehe ein Werkzeug auf die Stelle, an der der Knoten stehen soll.</p>
           ) : null}
           <ReactFlow
             nodes={nodes}
@@ -659,13 +697,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
                 setEdges((current) => current.map((item) => item.id === next.id ? next : item))
                 setDirty(true)
               }}
-              onDeleteNode={async (id) => {
-                if (!initial.nodes.some((node) => node.id === id)) {
-                  removeNode(id)
-                  return
-                }
-                setPendingDelete(id)
-              }}
+              onDeleteNode={(id) => requestDeleteNode(id)}
               onDeleteEdge={(id) => {
                 remember()
                 setEdges((current) => current.filter((edge) => edge.id !== id))
@@ -709,7 +741,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
                             <span className="font-medium">{node.data.title}</span>
                           </button>
                           {canWrite && selectedKind === 'node' && selectedId && selectedId !== node.id ? (
-                            <Button className="shrink-0" size="sm" type="button" aria-label={`Mit ${node.data.title} verbinden`} onClick={() => {
+                            <Button className="studio-row-action shrink-0" size="sm" type="button" aria-label={`Mit ${node.data.title} verbinden`} onClick={() => {
                               remember()
                               setEdges((current) => addEdge({
                                 id: crypto.randomUUID(),
@@ -721,7 +753,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
                               setDirty(true)
                             }}>Verbinden</Button>
                           ) : null}
-                          {canWrite ? <Button className="shrink-0" size="sm" type="button" variant="ghost" onClick={() => void (async () => {
+                          {canWrite ? <Button className="studio-row-action shrink-0" size="sm" type="button" variant="ghost" onClick={() => void (async () => {
                             if (!initial.nodes.some((item) => item.id === node.id)) removeNode(node.id)
                             else setPendingDelete(node.id)
                           })()}>Löschen</Button> : null}
@@ -742,7 +774,7 @@ function DiagramCanvas({ projectId, canWrite, initial, reload }: { projectId: st
                           <button type="button" className="min-w-0 flex-1 truncate text-left text-sm" onClick={() => { setSelectedId(edge.id); setSelectedKind('edge') }}>
                             <span className="font-medium">Kante {edgeCaption(edge, nodes)}</span>
                           </button>
-                          {canWrite ? <Button className="shrink-0" size="sm" type="button" variant="ghost" onClick={() => { remember(); setEdges((current) => current.filter((item) => item.id !== edge.id)); setDirty(true) }}>Löschen</Button> : null}
+                          {canWrite ? <Button className="studio-row-action shrink-0" size="sm" type="button" variant="ghost" onClick={() => { remember(); setEdges((current) => current.filter((item) => item.id !== edge.id)); setDirty(true) }}>Löschen</Button> : null}
                         </li>
                       )
                     })}
@@ -803,6 +835,8 @@ function FocusNode({ nodeId }: { nodeId: string | null }) {
   return null
 }
 
+const toolMime = 'application/sarch-tool'
+
 const processTools = [
   ['start', Circle],
   ['action', Square],
@@ -810,16 +844,23 @@ const processTools = [
   ['event', Zap],
   ['end', Octagon],
   ['note', StickyNote],
+  ['source', Database],
 ] as const
 
-function Palette({ kind, canWrite, components, onProcess, onComponent }: { kind: DiagramKind; canWrite: boolean; components: Component[]; onProcess: (type: string) => void; onComponent: (component: Component) => void }) {
-  if (!canWrite) return <p className="text-sm text-muted">Nur zur Ansicht.</p>
+function beginToolDrag(event: ReactDragEvent<HTMLButtonElement>, payload: string) {
+  event.dataTransfer.setData(toolMime, payload)
+  event.dataTransfer.effectAllowed = 'copy'
+}
+
+function Palette({ kind, canWrite, components }: { kind: DiagramKind; canWrite: boolean; components: Component[] }) {
+  if (!canWrite) return <p className="p-3 text-sm text-muted">Nur zur Ansicht.</p>
   if (kind === 'Process') {
     return (
       <div className="grid gap-1 p-2">
         <h2 className="px-2 py-1 text-xs font-semibold text-muted">Werkzeuge</h2>
+        <p className="px-2 pb-1 text-xs text-muted">Auf die Fläche ziehen.</p>
         {processTools.map(([type, Icon]) => (
-          <Button key={type} size="sm" className="justify-start" type="button" onClick={() => onProcess(type)}>
+          <Button key={type} size="sm" className="cursor-grab justify-start active:cursor-grabbing" type="button" draggable title="Auf die Fläche ziehen" onDragStart={(event) => beginToolDrag(event, `node:${type}`)}>
             <Icon size={14} aria-hidden="true" />
             {nodeTypeLabel(type)}
           </Button>
@@ -829,10 +870,15 @@ function Palette({ kind, canWrite, components, onProcess, onComponent }: { kind:
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-line p-2">
-        <Button size="sm" className="w-full justify-start" type="button" onClick={() => onProcess('note')}>
+      <div className="grid shrink-0 gap-1 border-b border-line p-2">
+        <p className="px-2 pb-1 text-xs text-muted">Auf die Fläche ziehen.</p>
+        <Button size="sm" className="w-full cursor-grab justify-start active:cursor-grabbing" type="button" draggable title="Auf die Fläche ziehen" onDragStart={(event) => beginToolDrag(event, 'node:note')}>
           <StickyNote size={14} aria-hidden="true" />
           Kommentar
+        </Button>
+        <Button size="sm" className="w-full cursor-grab justify-start active:cursor-grabbing" type="button" draggable title="Auf die Fläche ziehen" onDragStart={(event) => beginToolDrag(event, 'node:source')}>
+          <Database size={14} aria-hidden="true" />
+          Datenquelle
         </Button>
       </div>
       <h2 className="shrink-0 px-3 py-2 text-sm font-semibold">Komponenten</h2>
@@ -840,7 +886,7 @@ function Palette({ kind, canWrite, components, onProcess, onComponent }: { kind:
         <div className="studio-scroll min-h-0 flex-1 px-2 pb-3">
           <div className="grid gap-1">
             {components.map((component) => (
-              <Button key={component.id} size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal py-1.5 text-left" type="button" onClick={() => onComponent(component)}>{component.name}</Button>
+              <Button key={component.id} size="sm" className="h-auto min-h-8 w-full cursor-grab justify-start whitespace-normal py-1.5 text-left active:cursor-grabbing" type="button" draggable title="Auf die Fläche ziehen" onDragStart={(event) => beginToolDrag(event, `component:${component.id}`)}>{component.name}</Button>
             ))}
           </div>
         </div>
@@ -959,7 +1005,7 @@ function Inspector(props: {
 function StudioNode({ data, selected }: NodeProps<FlowNode>) {
   const shape = data.nodeType === 'start' || data.nodeType === 'end' ? 'rounded-full' : data.nodeType === 'decision' ? 'rounded-md border-dashed' : data.nodeType === 'event' ? 'rounded-md border-double' : 'rounded-md'
   return (
-    <div className={`studio-node min-w-40 border bg-card px-3 py-2 text-sm shadow-sm ${shape} ${data.nodeType === 'note' ? 'is-note' : ''} ${selected ? 'ring-2 ring-accent' : 'border-line'} ${data.nodeType === 'placement' && !data.color ? 'border-l-4 border-l-accent' : ''}`} data-tone={data.color || undefined}>
+    <div className={`studio-node min-w-40 border bg-card px-3 py-2 text-sm shadow-sm ${shape} ${data.nodeType === 'note' ? 'is-note' : ''} ${data.nodeType === 'source' ? 'is-source' : ''} ${selected ? 'ring-2 ring-accent' : 'border-line'} ${data.nodeType === 'placement' && !data.color ? 'border-l-4 border-l-accent' : ''}`} data-tone={data.color || undefined}>
       <Handle type="target" position={Position.Left} />
       <div className="text-[10px] font-medium uppercase tracking-wide text-muted">{nodeTypeLabel(data.nodeType)}</div>
       <div className="font-medium break-words">{data.title || 'Ohne Titel'}</div>
@@ -1020,7 +1066,7 @@ function dragPane(event: ReactPointerEvent, axis: 'x' | 'y', direction: 1 | -1, 
 }
 
 function listTypeRank(type: string) {
-  const order = ['start', 'event', 'action', 'decision', 'end', 'note', 'placement']
+  const order = ['start', 'event', 'action', 'decision', 'end', 'note', 'source', 'placement']
   const index = order.indexOf(type)
   return index === -1 ? order.length : index
 }
