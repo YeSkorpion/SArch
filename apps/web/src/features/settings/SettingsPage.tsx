@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
-import { Badge, Button, Field, Input, PageHeader, Select, Textarea } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Field, Input, PageHeader, Select, Textarea } from '../../components/ui'
 import { ErrorState, Loading } from '../../components/states'
 import { api, errorText } from '../../lib/api'
 import { roleLabel } from '../../lib/labels'
@@ -18,6 +18,7 @@ export function SettingsPage() {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<ProjectRole>('Editor')
   const [message, setMessage] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const members = useQuery({
     queryKey: ['members', project.id],
     queryFn: () => api<Member[]>(`/api/v1/projects/${project.id}/members`),
@@ -56,6 +57,14 @@ export function SettingsPage() {
     },
     onError: (error) => setMessage(errorText(error)),
   })
+  const removeProject = useMutation({
+    mutationFn: () => api(`/api/v1/projects/${project.id}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ['projects'] })
+      await navigate('/projekte')
+    },
+    onError: (error) => setMessage(errorText(error)),
+  })
   const remove = useMutation({
     mutationFn: (userId: string) => api(`/api/v1/projects/${project.id}/members/${userId}`, { method: 'DELETE' }),
     onSuccess: async () => {
@@ -80,7 +89,7 @@ export function SettingsPage() {
               <h2 className="text-base font-semibold">Projekt</h2>
               <p className="mt-1 text-sm text-muted">Name und Beschreibung erscheinen in der Projektliste.</p>
             </div>
-            {canManage ? <Button type="submit" variant="primary" size="sm" disabled={save.isPending}>Speichern</Button> : <p className="text-sm text-muted">Nur Eigentümer ändern die Projekteinstellungen.</p>}
+            {canManage ? <Button type="submit" variant="primary" size="sm" disabled={save.isPending}>Speichern</Button> : <p className="text-sm text-muted">{project.role === 'Owner' ? 'Das Projekt ist archiviert. Öffne es wieder, um Name und Beschreibung zu ändern.' : 'Nur Eigentümer ändern die Projekteinstellungen.'}</p>}
           </div>
           <div className="grid gap-4">
             <Field label="Name"><Input value={name} disabled={!canManage} onChange={(event) => setName(event.target.value)} /></Field>
@@ -89,7 +98,7 @@ export function SettingsPage() {
         </form>
         {showActions ? (
           <div className="grid gap-4">
-            {canManage ? (
+            {project.role === 'Owner' ? (
               <section className="grid gap-4 rounded-2xl border border-line bg-card p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center xl:grid-cols-1">
                 <div className="min-w-0">
                   <h2 className="text-base font-semibold">{project.isArchived ? 'Archiviert' : 'Aktiv'}</h2>
@@ -105,6 +114,15 @@ export function SettingsPage() {
                   <p className="mt-1 text-sm text-muted">Fachliche Projektdaten. Konten, Sitzungen und Mitgliedschaften bleiben in dieser Installation.</p>
                 </div>
                 <Button size="sm" type="button" onClick={() => void exportProject(project.id, project.name)}>Projekt exportieren</Button>
+              </section>
+            ) : null}
+            {project.role === 'Owner' ? (
+              <section className="grid gap-4 rounded-2xl border border-danger/40 bg-card p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center xl:grid-cols-1">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold">Löschen</h2>
+                  <p className="mt-1 text-sm text-muted">Das Projekt und alle Inhalte verschwinden dauerhaft. Archivieren lässt sich rückgängig machen, Löschen nicht.</p>
+                </div>
+                <Button size="sm" type="button" variant="danger" disabled={removeProject.isPending} onClick={() => setConfirmDelete(true)}>Projekt löschen</Button>
               </section>
             ) : null}
           </div>
@@ -147,6 +165,15 @@ export function SettingsPage() {
           </form>
         ) : null}
       </section>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Projekt löschen"
+        description={`„${project.name}“ und alle Inhalte werden dauerhaft gelöscht. Das lässt sich nicht rückgängig machen.`}
+        confirmLabel="Endgültig löschen"
+        pending={removeProject.isPending}
+        onConfirm={() => removeProject.mutate()}
+      />
     </div>
   )
 }

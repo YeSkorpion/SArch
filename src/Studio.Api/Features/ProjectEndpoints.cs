@@ -10,6 +10,7 @@ public static class ProjectEndpoints
         group.MapPatch("/projects/{projectId:guid}", Update);
         group.MapPost("/projects/{projectId:guid}/archive", Archive);
         group.MapPost("/projects/{projectId:guid}/restore", Restore);
+        group.MapDelete("/projects/{projectId:guid}", Delete);
         group.MapGet("/projects/{projectId:guid}/members", Members);
         group.MapPost("/projects/{projectId:guid}/members", AddMember);
         group.MapPatch("/projects/{projectId:guid}/members/{userId:guid}", UpdateMember);
@@ -149,6 +150,47 @@ public static class ProjectEndpoints
         }
 
         return await SetArchived(db, clock, projectId, body.Version, false, gate.Role, http, ct);
+    }
+
+    private static async Task<IResult> Delete(AppDbContext db, ProjectGuard guard, Guid projectId, HttpContext http, CancellationToken ct)
+    {
+        var gate = await guard.Require(http.User, projectId, Access.Owner, ct);
+        if (gate.Failed)
+        {
+            return gate.Error!;
+        }
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var project = await LockProject(db, projectId, ct);
+        if (project is null)
+        {
+            return Problems.NotFound(http);
+        }
+
+        await db.DiagramEdges.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.ScreenNavigations.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.ArtifactLinks.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.DocumentRevisions.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.Documents.Where(item => item.ProjectId == projectId).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ParentId, (Guid?)null), ct);
+        await db.Documents.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.DiagramNodes.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.FlowEntries.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.Screens.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.Components.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.Requirements.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.Diagrams.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.Artifacts.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        await db.Areas.Where(item => item.ProjectId == projectId).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ParentId, (Guid?)null), ct);
+        await db.Areas.Where(item => item.ProjectId == projectId).ExecuteDeleteAsync(ct);
+        db.Projects.Remove(project);
+        var error = await DbSave.SaveAsync(db, http, ct);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        await tx.CommitAsync(ct);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> Members(ProjectGuard guard, AppDbContext db, Guid projectId, HttpContext http, CancellationToken ct)

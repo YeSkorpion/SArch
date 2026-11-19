@@ -429,6 +429,51 @@ public sealed class StudioFlowTests(PostgresFixture fixture) : IAsyncLifetime
         _api.Token = response.Body.GetProperty("token").GetString() ?? _api.Token;
     }
 
+    [Fact]
+    public async Task Owner_can_delete_a_project_and_other_roles_cannot()
+    {
+        await Login("loeschen@example.com");
+        var project = await CreateProject("Wegwerfen");
+        var projectId = project.GetProperty("id").GetGuid();
+        var version = project.GetProperty("version").GetInt32();
+        var parentArea = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/areas", new { name = "Aufträge" });
+        Assert.Equal(HttpStatusCode.Created, parentArea.Status);
+        var childArea = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/areas", new { name = "Anlage", parentId = parentArea.Body.GetProperty("id").GetGuid() });
+        Assert.Equal(HttpStatusCode.Created, childArea.Status);
+        var requirement = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/requirements", new { title = "Sichtbar", areaId = parentArea.Body.GetProperty("id").GetGuid() });
+        Assert.Equal(HttpStatusCode.Created, requirement.Status);
+        var page = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/documents", new { title = "Handbuch", kind = "Page" });
+        var childPage = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/documents", new { title = "Kapitel", kind = "Page", parentId = page.Body.GetProperty("id").GetGuid() });
+        Assert.Equal(HttpStatusCode.Created, childPage.Status);
+        var component = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/components", new { name = "Dienst", kind = "Service" });
+        Assert.Equal(HttpStatusCode.Created, component.Status);
+        var screen = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/screens", new { name = "Liste", route = "/liste" });
+        Assert.Equal(HttpStatusCode.Created, screen.Status);
+        var diagram = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/diagrams", new { name = "Ablauf", kind = "Process", areaId = childArea.Body.GetProperty("id").GetGuid() });
+        var diagramId = diagram.Body.GetProperty("id").GetGuid();
+        var start = Guid.NewGuid();
+        var action = Guid.NewGuid();
+        var saved = await SaveDiagram(projectId, diagramId, 1, "Ablauf", Nodes(("start", start, "Start"), ("action", action, "Prüfen")), Edges((Guid.NewGuid(), start, action, null)), areaId: childArea.Body.GetProperty("id").GetGuid());
+        Assert.Equal(HttpStatusCode.OK, saved.Status);
+        var linked = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/links", new { sourceId = action, targetId = requirement.Body.GetProperty("id").GetGuid(), relation = "Satisfies" });
+        Assert.Equal(HttpStatusCode.Created, linked.Status);
+
+        var editor = await NewUser("loeschen-editor@example.com");
+        Assert.Equal(HttpStatusCode.OK, (await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/members", new { email = "loeschen-editor@example.com", role = "Editor" })).Status);
+        var forbidden = await editor.Call(HttpMethod.Delete, $"/api/v1/projects/{projectId}");
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.Status);
+        Assert.Equal(HttpStatusCode.OK, (await _api.Call(HttpMethod.Get, $"/api/v1/projects/{projectId}")).Status);
+
+        var archived = await _api.Call(HttpMethod.Post, $"/api/v1/projects/{projectId}/archive", new { version });
+        Assert.Equal(HttpStatusCode.OK, archived.Status);
+        var deleted = await _api.Call(HttpMethod.Delete, $"/api/v1/projects/{projectId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.Status);
+        Assert.Equal(HttpStatusCode.NotFound, (await _api.Call(HttpMethod.Get, $"/api/v1/projects/{projectId}")).Status);
+        Assert.Equal(HttpStatusCode.NotFound, (await editor.Call(HttpMethod.Get, $"/api/v1/projects/{projectId}")).Status);
+        var list = await _api.Call(HttpMethod.Get, "/api/v1/projects");
+        Assert.DoesNotContain(list.Body.EnumerateArray(), item => item.GetProperty("id").GetGuid() == projectId);
+    }
+
     private async Task Login(string email)
     {
         await Register(email);
