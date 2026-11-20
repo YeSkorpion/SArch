@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button, Field, Input, Select, Textarea } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
@@ -212,9 +213,17 @@ export function ComponentSchema({ projectId, componentId, kind, canWrite }: { pr
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState(profile.subtitleOptions?.[0] ?? '')
   const [description, setDescription] = useState('')
+  const [query, setQuery] = useState('')
+  const [folded, setFolded] = useState<Record<string, boolean>>({})
   const rows = sections.data ?? []
   const own = rows.filter((item) => item.kind === profile.sectionKind)
   const other = rows.filter((item) => item.kind !== profile.sectionKind)
+  const term = query.trim().toLowerCase()
+  const shown = own.flatMap((section) => {
+    const hit = sectionMatch(section, term)
+    return hit ? [{ section, columns: hit }] : []
+  })
+  const columnCount = own.reduce((sum, section) => sum + section.columns.length, 0)
   const error = create.error ?? update.error ?? remove.error ?? saveColumn.error ?? removeColumn.error
   useEffect(() => { setSubtitle(profile.subtitleOptions?.[0] ?? '') }, [profile])
 
@@ -223,7 +232,7 @@ export function ComponentSchema({ projectId, componentId, kind, canWrite }: { pr
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{profile.heading}</h2>
-          <p className="text-sm text-muted">{profile.intro}</p>
+          <p className="text-sm text-muted">{profile.intro}{own.length > 0 ? ` ${own.length} ${own.length === 1 ? profile.noun[0] : profile.noun[1]}, ${columnCount} ${columnCount === 1 ? 'Eintrag' : 'Einträge'}.` : ''}</p>
         </div>
         {canWrite ? <Button type="button" variant="primary" onClick={() => setOpen((value) => !value)}>{profile.add}</Button> : null}
       </div>
@@ -244,21 +253,41 @@ export function ComponentSchema({ projectId, componentId, kind, canWrite }: { pr
         </form>
       ) : null}
       {own.length === 0 && !sections.isLoading ? <p className="text-sm text-muted">{profile.empty}</p> : null}
+      {own.length > 1 || columnCount > 8 ? (
+        <Input aria-label={`${profile.heading} durchsuchen`} placeholder="Name, Spalte oder Notiz" value={query} onChange={(event) => setQuery(event.target.value)} />
+      ) : null}
+      {own.length > 0 && shown.length === 0 ? <p className="text-sm text-muted">Keine Treffer.</p> : null}
       <div className="grid gap-3">
-        {own.map((section) => (
-          <article key={section.id} className="rounded-lg border border-line bg-background p-3">
-            <SectionHead section={section} profile={profile} canWrite={canWrite} pending={update.isPending || remove.isPending} onSave={(next) => update.mutate(next)} onRemove={() => remove.mutate(section.id)} />
-            <h3 className="mt-3 text-xs font-medium text-muted">{profile.members}</h3>
-            {section.columns.length === 0 ? <p className="mt-1 text-sm text-muted">Noch keine {profile.members}.</p> : (
-              <ul className="mt-2 divide-y divide-line">
-                {section.columns.map((column) => (
-                  <ColumnRow key={column.id} column={column} section={section} profile={profile} canWrite={canWrite} pending={saveColumn.isPending || removeColumn.isPending} onSave={(body) => saveColumn.mutate({ sectionId: section.id, column, body })} onRemove={() => removeColumn.mutate({ sectionId: section.id, columnId: column.id })} />
-                ))}
-              </ul>
-            )}
-            {canWrite ? <ColumnForm section={section} profile={profile} pending={saveColumn.isPending} onAdd={(body) => saveColumn.mutate({ sectionId: section.id, body })} /> : null}
-          </article>
-        ))}
+        {shown.map(({ section, columns }) => {
+          const closed = term ? false : folded[section.id] ?? section.columns.length > 6
+          const label = section.subtitle ? `${section.subtitle} ${section.title}` : section.title
+          return (
+            <article key={section.id} className="overflow-hidden rounded-lg border border-line bg-background">
+              <button className="flex w-full items-center gap-2 px-3 py-2.5 text-left" type="button" aria-expanded={!closed} onClick={() => setFolded((current) => ({ ...current, [section.id]: !closed }))}>
+                <ChevronDown className={`size-4 shrink-0 text-muted transition-transform ${closed ? '-rotate-90' : ''}`} aria-hidden="true" />
+                <span className="min-w-0 truncate font-semibold">{label}</span>
+                <span className="shrink-0 text-xs text-muted">{section.columns.length} {profile.members}</span>
+                {section.description ? <span className="hidden min-w-0 flex-1 truncate text-sm text-muted sm:block">{section.description}</span> : null}
+              </button>
+              {closed ? null : (
+                <div className="grid gap-3 border-t border-line px-3 py-3">
+                  <SectionHead section={section} profile={profile} canWrite={canWrite} pending={update.isPending || remove.isPending} onSave={(next) => update.mutate(next)} onRemove={() => remove.mutate(section.id)} />
+                  {columns.length === 0 ? <p className="text-sm text-muted">{term ? 'Keine Treffer in diesem Eintrag.' : `Noch keine ${profile.members}.`}</p> : (
+                    <div>
+                      <MemberHead profile={profile} />
+                      <ul>
+                        {columns.map((column) => (
+                          <ColumnRow key={column.id} column={column} section={section} profile={profile} canWrite={canWrite} pending={saveColumn.isPending || removeColumn.isPending} onSave={(body) => saveColumn.mutate({ sectionId: section.id, column, body })} onRemove={() => removeColumn.mutate({ sectionId: section.id, columnId: column.id })} />
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {canWrite ? <ColumnForm section={section} profile={profile} pending={saveColumn.isPending} onAdd={(body) => saveColumn.mutate({ sectionId: section.id, body })} /> : null}
+                </div>
+              )}
+            </article>
+          )
+        })}
       </div>
       {other.length > 0 ? (
         <div className="grid gap-2 border-t border-line pt-3">
@@ -285,12 +314,7 @@ function SectionHead({ section, profile, canWrite, pending, onSave, onRemove }: 
     if (draft.title.trim() && (draft.title !== section.title || draft.subtitle !== section.subtitle || draft.description !== section.description)) onSave(draft)
   }
   if (!canWrite) {
-    return (
-      <div>
-        <h3 className="font-semibold">{section.subtitle ? `${section.subtitle} ${section.title}` : section.title}</h3>
-        {section.description ? <p className="text-sm text-muted">{section.description}</p> : null}
-      </div>
-    )
+    return section.description ? <p className="text-sm text-muted">{section.description}</p> : null
   }
   return (
     <div className="grid gap-2" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) commit() }}>
@@ -300,7 +324,7 @@ function SectionHead({ section, profile, canWrite, pending, onSave, onRemove }: 
         {profile.subtitle && !profile.subtitleOptions ? <Input className="min-w-32 flex-1" aria-label={`${profile.subtitle} ${section.title}`} value={draft.subtitle} onChange={(event) => setDraft({ ...draft, subtitle: event.target.value })} /> : null}
         <Button type="button" variant="ghost" disabled={pending} onClick={onRemove}>{profile.remove}</Button>
       </div>
-      <Textarea className="min-h-16" aria-label={`${profile.description} ${section.title}`} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
+      <Textarea className="min-h-10" aria-label={`${profile.description} ${section.title}`} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
     </div>
   )
 }
@@ -317,17 +341,24 @@ function ColumnRow({ column, section, profile, canWrite, pending, onSave, onRemo
     }
   }
   if (!canWrite) {
-    return <li className="py-2 text-sm">{column.name} <span className="text-muted">{[column.role, column.dataType, column.required ? 'Pflicht' : '', column.isKey ? 'Schlüssel' : ''].filter(Boolean).join(' · ')}</span></li>
+    return (
+      <li className="border-t border-line py-2 text-sm">
+        <p>{column.name} <span className="text-muted">{[column.role, column.dataType, column.required ? 'Pflicht' : '', column.isKey ? 'Schlüssel' : ''].filter(Boolean).join(' · ')}</span></p>
+        {column.notes ? <p className="text-muted">{column.notes}</p> : null}
+      </li>
+    )
   }
   return (
-    <li className="grid gap-2 py-2 md:grid-cols-[1fr_8rem_8rem_auto_auto_1fr_auto] md:items-center" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) commit() }}>
-      <Input aria-label={`${profile.members} ${scope}`} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-      {profile.typeOptions ? <Select aria-label={`${profile.typeLabel} ${scope} ${column.name}`} value={draft.dataType} onChange={(event) => setDraft({ ...draft, dataType: event.target.value })}>{profile.typeOptions.map((item) => <option key={item}>{item}</option>)}</Select> : <Input aria-label={`${profile.typeLabel} ${scope} ${column.name}`} placeholder="uuid, text, timestamptz" value={draft.dataType} onChange={(event) => setDraft({ ...draft, dataType: event.target.value })} />}
-      {profile.roles.length > 0 ? <Select aria-label={`Rolle ${scope} ${column.name}`} value={draft.role} onChange={(event) => setDraft({ ...draft, role: event.target.value })}>{profile.roles.map((item) => <option key={item}>{item}</option>)}</Select> : <span className="hidden md:block" />}
-      {profile.showRequired ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.required} onChange={(event) => setDraft({ ...draft, required: event.target.checked })} />Pflicht</label> : <span className="hidden md:block" />}
-      {profile.showKey ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.isKey} onChange={(event) => setDraft({ ...draft, isKey: event.target.checked })} />Schlüssel</label> : <span className="hidden md:block" />}
+    <li className="grid gap-2 border-t border-line py-2" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) commit() }}>
+      <div className={`grid items-center gap-2 ${trackClass(profile)}`}>
+        <Input aria-label={`${profile.members} ${scope}`} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+        {profile.typeOptions ? <Select aria-label={`${profile.typeLabel} ${scope} ${column.name}`} value={draft.dataType} onChange={(event) => setDraft({ ...draft, dataType: event.target.value })}>{profile.typeOptions.map((item) => <option key={item}>{item}</option>)}</Select> : <Input aria-label={`${profile.typeLabel} ${scope} ${column.name}`} placeholder="TEXT" value={draft.dataType} onChange={(event) => setDraft({ ...draft, dataType: event.target.value })} />}
+        {profile.roles.length > 0 ? <Select aria-label={`Rolle ${scope} ${column.name}`} value={draft.role} onChange={(event) => setDraft({ ...draft, role: event.target.value })}>{profile.roles.map((item) => <option key={item}>{item}</option>)}</Select> : null}
+        {profile.showRequired ? <Flag label="Pflicht" checked={draft.required} onChange={(required) => setDraft({ ...draft, required })} /> : null}
+        {profile.showKey ? <Flag label="Schlüssel" checked={draft.isKey} onChange={(isKey) => setDraft({ ...draft, isKey })} /> : null}
+        <Button className="justify-self-end" type="button" variant="ghost" disabled={pending} onClick={onRemove}>{profile.memberRemove}</Button>
+      </div>
       <Input aria-label={`Notiz ${scope} ${column.name}`} value={draft.notes} placeholder="Notiz" onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
-      <Button type="button" variant="ghost" disabled={pending} onClick={onRemove}>{profile.memberRemove}</Button>
     </li>
   )
 }
@@ -341,22 +372,61 @@ function ColumnForm({ section, profile, pending, onAdd }: { section: SchemaSecti
   const [notes, setNotes] = useState('')
   const scope = section.subtitle ? `${section.subtitle} ${section.title}` : section.title
   return (
-    <form className="mt-3 grid gap-2 border-t border-line pt-3 md:grid-cols-[1fr_8rem_8rem_auto_auto_1fr_auto] md:items-end" onSubmit={(event) => {
+    <form className="grid gap-2 rounded-md border border-dashed border-line p-2" onSubmit={(event) => {
       event.preventDefault()
       onAdd({ name, dataType, required, isKey, role: profile.roles.length ? role : '', notes })
       setName('')
       setNotes('')
       setIsKey(false)
     }}>
-      <Field label={profile.members}><Input aria-label={`Neu ${profile.members} ${scope}`} value={name} onChange={(event) => setName(event.target.value)} /></Field>
-      <Field label={profile.typeLabel}>{profile.typeOptions ? <Select aria-label={`Neu ${profile.typeLabel} ${scope}`} value={dataType} onChange={(event) => setDataType(event.target.value)}>{profile.typeOptions.map((item) => <option key={item}>{item}</option>)}</Select> : <Input aria-label={`Neu ${profile.typeLabel} ${scope}`} placeholder="text" value={dataType} onChange={(event) => setDataType(event.target.value)} />}</Field>
-      {profile.roles.length > 0 ? <Field label="Rolle"><Select aria-label={`Neu Rolle ${scope}`} value={role} onChange={(event) => setRole(event.target.value)}>{profile.roles.map((item) => <option key={item}>{item}</option>)}</Select></Field> : <span className="hidden md:block" />}
-      {profile.showRequired ? <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={required} onChange={(event) => setRequired(event.target.checked)} />Pflicht</label> : <span className="hidden md:block" />}
-      {profile.showKey ? <label className="flex items-center gap-2 pb-2 text-sm"><input type="checkbox" checked={isKey} onChange={(event) => setIsKey(event.target.checked)} />Schlüssel</label> : <span className="hidden md:block" />}
-      <Field label="Notiz"><Input aria-label={`Neu Notiz ${scope}`} value={notes} onChange={(event) => setNotes(event.target.value)} /></Field>
-      <Button type="submit" disabled={pending || name.trim().length === 0}>{profile.memberAdd}</Button>
+      <div className={`grid items-center gap-2 ${trackClass(profile)}`}>
+        <Input aria-label={`Neu ${profile.members} ${scope}`} placeholder={profile.members} value={name} onChange={(event) => setName(event.target.value)} />
+        {profile.typeOptions ? <Select aria-label={`Neu ${profile.typeLabel} ${scope}`} value={dataType} onChange={(event) => setDataType(event.target.value)}>{profile.typeOptions.map((item) => <option key={item}>{item}</option>)}</Select> : <Input aria-label={`Neu ${profile.typeLabel} ${scope}`} placeholder={profile.typeLabel} value={dataType} onChange={(event) => setDataType(event.target.value)} />}
+        {profile.roles.length > 0 ? <Select aria-label={`Neu Rolle ${scope}`} value={role} onChange={(event) => setRole(event.target.value)}>{profile.roles.map((item) => <option key={item}>{item}</option>)}</Select> : null}
+        {profile.showRequired ? <Flag label="Pflicht" checked={required} onChange={setRequired} /> : null}
+        {profile.showKey ? <Flag label="Schlüssel" checked={isKey} onChange={setIsKey} /> : null}
+        <Button className="justify-self-end" type="submit" disabled={pending || name.trim().length === 0}>{profile.memberAdd}</Button>
+      </div>
+      <Input aria-label={`Neu Notiz ${scope}`} placeholder="Notiz" value={notes} onChange={(event) => setNotes(event.target.value)} />
     </form>
   )
+}
+
+function MemberHead({ profile }: { profile: Profile }) {
+  return (
+    <div className={`mb-1 hidden items-center gap-2 text-xs font-medium text-muted md:grid ${trackClass(profile)}`}>
+      <span>Name</span>
+      <span>{profile.typeLabel}</span>
+      {profile.roles.length > 0 ? <span>Rolle</span> : null}
+      {profile.showRequired ? <span>Pflicht</span> : null}
+      {profile.showKey ? <span>Schlüssel</span> : null}
+      <span />
+    </div>
+  )
+}
+
+function Flag({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <label className="flex h-10 items-center gap-1.5 rounded-md border border-line bg-card px-2 text-sm">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      {label}
+    </label>
+  )
+}
+
+function trackClass(profile: Profile) {
+  if (profile.roles.length > 0 && profile.showRequired) return 'md:grid-cols-[minmax(0,1.15fr)_7.5rem_8rem_5.75rem_auto]'
+  if (profile.showKey && profile.showRequired) return 'md:grid-cols-[minmax(0,1.15fr)_7.5rem_5.75rem_6.5rem_auto]'
+  if (profile.showRequired) return 'md:grid-cols-[minmax(0,1.2fr)_7.5rem_5.75rem_auto]'
+  return 'md:grid-cols-[minmax(0,1.2fr)_9rem_auto]'
+}
+
+function sectionMatch(section: SchemaSection, term: string) {
+  if (!term) return section.columns
+  const head = `${section.title} ${section.subtitle} ${section.description}`.toLowerCase().includes(term)
+  if (head) return section.columns
+  const columns = section.columns.filter((column) => `${column.name} ${column.dataType} ${column.role} ${column.notes}`.toLowerCase().includes(term))
+  return columns.length > 0 ? columns : null
 }
 
 function columnPath(projectId: string, componentId: string, sectionId: string, columnId?: string) {
