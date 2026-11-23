@@ -116,13 +116,23 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 }
 
 export function Select({ className, children, value, disabled, onChange, onKeyDown, onMouseDown, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  const options = collectOptions(children)
+  const selectRef = useRef<HTMLSelectElement>(null)
+  const [options, setOptions] = useState<SelectOption[]>(() => collectOptions(children))
+  useLayoutEffect(() => {
+    const select = selectRef.current
+    if (!select) return
+    const next = [...select.options].map((option) => ({
+      value: option.value,
+      label: option.text.replace(/\s+/g, ' ').trim(),
+      disabled: option.disabled,
+    }))
+    setOptions((currentOptions) => optionsEqual(currentOptions, next) ? currentOptions : next)
+  })
   const current = value == null ? '' : String(value)
   const selected = options.find((option) => option.value === current)
   const inline = className?.split(/\s+/).includes('studio-inline') ?? false
   const listId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
-  const selectRef = useRef<HTMLSelectElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const typed = useRef('')
   const typedAt = useRef(0)
@@ -445,7 +455,13 @@ type MenuPlace = {
   fixed: boolean
 }
 
-function collectOptions(children: ReactNode) {
+type SelectOption = { value: string; label: string; disabled: boolean }
+
+function optionsEqual(left: SelectOption[], right: SelectOption[]) {
+  return left.length === right.length && left.every((option, index) => option.value === right[index]?.value && option.label === right[index]?.label && option.disabled === right[index]?.disabled)
+}
+
+function collectOptions(children: ReactNode): SelectOption[] {
   const options: { value: string; label: string; disabled: boolean }[] = []
   Children.forEach(children, (child) => {
     if (!isValidElement<{ value?: string | number; disabled?: boolean; children?: ReactNode }>(child) || child.type !== 'option') return
