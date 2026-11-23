@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Save, Trash2 } from 'lucide-react'
+import { ChevronDown, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { EmptyState, ErrorState, Loading } from '../../components/states'
-import { Badge, Button, Field, Input, Modal, PageHeader, Select, Textarea } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Field, Input, Modal, PageHeader, Select, Textarea } from '../../components/ui'
 import { api, errorText } from '../../lib/api'
+import { cn } from '../../lib/cn'
 import type { Component, Criterion, DataEntity, DeliveryPlan, OpenPoint, OpenPointKind, Requirement, Screen, ServiceContract } from '../../lib/types'
 import type { ProjectOutlet } from '../shell/Shell'
 
@@ -247,63 +248,181 @@ export function DataModelPage() {
   )
 }
 
+type ContractDraft = { name: string; providerId: string; consumerId: string; operation: string; input: string; output: string; errors: string }
+
+const emptyContract: ContractDraft = { name: '', providerId: '', consumerId: '', operation: '', input: '', output: '', errors: '' }
+
+function contractDraft(item: ServiceContract): ContractDraft {
+  return { name: item.name, providerId: item.providerId, consumerId: item.consumerId ?? '', operation: item.operation, input: item.input, output: item.output, errors: item.errors }
+}
+
+function contractBody(draft: ContractDraft) {
+  return { name: draft.name, providerId: draft.providerId, consumerId: draft.consumerId || null, operation: draft.operation, input: draft.input, output: draft.output, errors: draft.errors }
+}
+
 export function ContractsPage() {
   const { project, canWrite } = useOutletContext<ProjectOutlet>()
   const client = useQueryClient()
   const contracts = useQuery({ queryKey: ['contracts', project.id], queryFn: () => api<ServiceContract[]>(`/api/v1/projects/${project.id}/contracts`) })
   const components = useQuery({ queryKey: ['components', project.id], queryFn: () => api<Component[]>(`/api/v1/projects/${project.id}/components`) })
   const [creating, setCreating] = useState(false)
-  const [draft, setDraft] = useState({ name: '', providerId: '', consumerId: '', operation: '', input: '', output: '', errors: '' })
+  const [draft, setDraft] = useState(emptyContract)
+  const [query, setQuery] = useState('')
+  const [folded, setFolded] = useState<Record<string, boolean>>({})
+  const [editing, setEditing] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<ServiceContract | null>(null)
   const refresh = () => void client.invalidateQueries({ queryKey: ['contracts', project.id] })
   const create = useMutation({
-    mutationFn: () => api<ServiceContract>(`/api/v1/projects/${project.id}/contracts`, { method: 'POST', body: { ...draft, consumerId: draft.consumerId || null } }),
-    onSuccess: () => { setDraft({ name: '', providerId: '', consumerId: '', operation: '', input: '', output: '', errors: '' }); setCreating(false); refresh() },
+    mutationFn: () => api<ServiceContract>(`/api/v1/projects/${project.id}/contracts`, { method: 'POST', body: contractBody(draft) }),
+    onSuccess: (saved) => { setDraft(emptyContract); setCreating(false); setFolded((current) => ({ ...current, [saved.id]: false })); setEditing(saved.id); refresh() },
+  })
+  const update = useMutation({
+    mutationFn: (input: { id: string; draft: ContractDraft }) => api<ServiceContract>(`/api/v1/projects/${project.id}/contracts/${input.id}`, { method: 'PATCH', body: contractBody(input.draft) }),
+    onSuccess: () => { setEditing(null); refresh() },
   })
   const remove = useMutation({
     mutationFn: (id: string) => api(`/api/v1/projects/${project.id}/contracts/${id}`, { method: 'DELETE' }),
-    onSuccess: () => refresh(),
+    onSuccess: () => { setPendingDelete(null); setEditing(null); refresh() },
   })
   if (contracts.isLoading) return <Loading />
   if (contracts.isError) return <div className="p-6"><ErrorState error={contracts.error} onRetry={() => void contracts.refetch()} /></div>
   const rows = contracts.data ?? []
+  const term = query.trim().toLowerCase()
+  const shown = rows.filter((item) => !term || `${item.name} ${item.operation} ${item.providerName} ${item.consumerName ?? ''} ${item.input} ${item.output} ${item.errors}`.toLowerCase().includes(term))
+  const everyOpen = shown.length > 0 && shown.every((item) => folded[item.id] === false)
+  const catalog = components.data ?? []
   return (
     <div className={shell()}>
       <PageHeader title="Schnittstellen" description="Ein konkreter Aufruf: wer ihn anbietet, wer ihn nutzt, was hineingeht, was herauskommt und welche Fehler es gibt." action={canWrite ? <Button type="button" variant="primary" onClick={() => setCreating((value) => !value)}>Schnittstelle anlegen</Button> : undefined} />
       {creating ? (
         <form className="grid gap-3 rounded-xl border border-line bg-card p-4 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
-          <Field label="Name"><Input aria-label="Name der Schnittstelle" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
-          <Field label="Aufrufname"><Input aria-label="Aufrufname" value={draft.operation} placeholder="Bestellung freigeben" onChange={(event) => setDraft({ ...draft, operation: event.target.value })} /></Field>
-          <Field label="Anbieter"><Select aria-label="Anbieter" value={draft.providerId} onChange={(event) => setDraft({ ...draft, providerId: event.target.value })}><option value="">Auswählen</option>{(components.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
-          <Field label="Aufrufer"><Select aria-label="Aufrufer" value={draft.consumerId} onChange={(event) => setDraft({ ...draft, consumerId: event.target.value })}><option value="">Kein Aufrufer</option>{(components.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
-          <Field label="Eingabe"><Textarea value={draft.input} onChange={(event) => setDraft({ ...draft, input: event.target.value })} /></Field>
-          <Field label="Ausgabe"><Textarea value={draft.output} onChange={(event) => setDraft({ ...draft, output: event.target.value })} /></Field>
-          <Field label="Fehler"><Textarea value={draft.errors} onChange={(event) => setDraft({ ...draft, errors: event.target.value })} /></Field>
+          <ContractFields draft={draft} setDraft={setDraft} components={catalog} labels={{ name: 'Name der Schnittstelle', operation: 'Aufrufname', provider: 'Anbieter', consumer: 'Aufrufer' }} />
           {create.isError ? <p role="alert" className="text-sm text-danger md:col-span-2">{errorText(create.error)}</p> : null}
           <Button type="submit" variant="primary" disabled={create.isPending || draft.name.trim().length === 0 || draft.operation.trim().length === 0 || draft.providerId === ''}>Speichern</Button>
         </form>
       ) : null}
       {rows.length === 0 ? <EmptyState title="Noch keine Schnittstellen" body="Lege den Aufruf zwischen zwei Komponenten fest, inklusive Eingabe, Ausgabe und Fehlern." /> : (
-        <div className="grid gap-3">
-          {rows.map((item) => (
-            <article key={item.id} className="rounded-xl border border-line bg-card p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-semibold">{item.name}</h2>
-                  <p className="text-sm text-muted">{item.consumerName ?? 'Aufrufer offen'} ruft {item.operation} bei {item.providerName} auf.</p>
-                </div>
-                {canWrite ? <Button type="button" variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate(item.id)}>Schnittstelle entfernen</Button> : null}
-              </div>
-              <dl className="mt-3 grid gap-3 md:grid-cols-3">
-                <div><dt className="text-xs text-muted">Eingabe</dt><dd className="mt-1 whitespace-pre-wrap text-sm">{item.input || '—'}</dd></div>
-                <div><dt className="text-xs text-muted">Ausgabe</dt><dd className="mt-1 whitespace-pre-wrap text-sm">{item.output || '—'}</dd></div>
-                <div><dt className="text-xs text-muted">Fehler</dt><dd className="mt-1 whitespace-pre-wrap text-sm">{item.errors || '—'}</dd></div>
-              </dl>
-            </article>
-          ))}
-        </div>
+        <>
+          {rows.length > 3 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input className="min-w-48 flex-1" aria-label="Schnittstellen durchsuchen" placeholder="Name, Aufruf oder Komponente" value={query} onChange={(event) => setQuery(event.target.value)} />
+              {!term ? <Button type="button" variant="secondary" size="sm" onClick={() => setFolded(Object.fromEntries(rows.map((item) => [item.id, everyOpen])))}>{everyOpen ? 'Alle einklappen' : 'Alle aufklappen'}</Button> : null}
+            </div>
+          ) : null}
+          {shown.length === 0 ? <p className="text-sm text-muted">Keine Treffer.</p> : null}
+          <div className="grid gap-3">
+            {shown.map((item) => (
+              <ContractCard
+                key={item.id}
+                item={item}
+                closed={term ? false : folded[item.id] !== false}
+                editing={editing === item.id}
+                canWrite={canWrite}
+                components={catalog}
+                pending={update.isPending || remove.isPending}
+                error={update.isError && update.variables?.id === item.id ? update.error : null}
+                onToggle={() => {
+                  const closed = term ? false : folded[item.id] !== false
+                  setFolded((current) => ({ ...current, [item.id]: !closed }))
+                  if (!closed) setEditing((current) => current === item.id ? null : current)
+                }}
+                onEdit={() => { setFolded((current) => ({ ...current, [item.id]: false })); setEditing(item.id) }}
+                onCancel={() => setEditing(null)}
+                onSave={(next) => update.mutate({ id: item.id, draft: next })}
+                onDelete={() => setPendingDelete(item)}
+              />
+            ))}
+          </div>
+        </>
       )}
+      <ConfirmDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null) }} title="Schnittstelle löschen" description={pendingDelete ? `„${pendingDelete.name}“ wird gelöscht.` : ''} confirmLabel="Löschen" pending={remove.isPending} onConfirm={() => { if (pendingDelete) remove.mutate(pendingDelete.id) }} />
       {remove.isError ? <p role="alert" className="text-sm text-danger">{errorText(remove.error)}</p> : null}
     </div>
+  )
+}
+
+function ContractCard({ item, closed, editing, canWrite, components, pending, error, onToggle, onEdit, onCancel, onSave, onDelete }: {
+  item: ServiceContract
+  closed: boolean
+  editing: boolean
+  canWrite: boolean
+  components: Component[]
+  pending: boolean
+  error: unknown
+  onToggle: () => void
+  onEdit: () => void
+  onCancel: () => void
+  onSave: (draft: ContractDraft) => void
+  onDelete: () => void
+}) {
+  const [draft, setDraft] = useState(() => contractDraft(item))
+  useEffect(() => { if (!editing) setDraft(contractDraft(item)) }, [editing, item])
+  return (
+    <article className="overflow-hidden rounded-xl border border-line bg-card">
+      <button className="flex w-full items-start gap-3 px-4 py-3 text-left" type="button" aria-expanded={!closed} onClick={onToggle}>
+        <ChevronDown className={cn('mt-1 size-4 shrink-0 text-muted transition-transform', closed && '-rotate-90')} aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">{item.name}</span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+            <span>{item.consumerName ?? 'Aufrufer offen'}</span>
+            <span aria-hidden="true">→</span>
+            <span className="rounded-md bg-accent/12 px-1.5 py-0.5 font-mono text-xs text-accent">{item.operation}</span>
+            <span aria-hidden="true">→</span>
+            <span>{item.providerName}</span>
+          </span>
+        </span>
+      </button>
+      {closed ? null : editing ? (
+        <form className="grid gap-3 border-t border-line px-4 py-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); onSave(draft) }}>
+          <ContractFields draft={draft} setDraft={setDraft} components={components} labels={{ name: `Name ${item.name}`, operation: `Aufrufname ${item.name}`, provider: `Anbieter ${item.name}`, consumer: `Aufrufer ${item.name}` }} />
+          {error ? <p role="alert" className="text-sm text-danger md:col-span-2">{errorText(error)}</p> : null}
+          <div className="flex flex-wrap items-center justify-between gap-2 md:col-span-2">
+            <Button type="button" variant="ghost" disabled={pending} onClick={onDelete}>Schnittstelle entfernen</Button>
+            <div className="flex gap-2">
+              <Button type="button" onClick={onCancel}>Abbrechen</Button>
+              <Button type="submit" variant="primary" disabled={pending || draft.name.trim().length === 0 || draft.operation.trim().length === 0 || draft.providerId === ''}>Speichern</Button>
+            </div>
+          </div>
+        </form>
+      ) : (
+        <div className="border-t border-line">
+          <div className="grid divide-y divide-line md:grid-cols-3 md:divide-x md:divide-y-0">
+            <ContractFact label="Eingabe" value={item.input} />
+            <ContractFact label="Ausgabe" value={item.output} />
+            <ContractFact label="Fehler" value={item.errors} />
+          </div>
+          {canWrite ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-3 py-2">
+              <Button type="button" variant="ghost" size="sm" onClick={onEdit}>Bearbeiten</Button>
+              <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={onDelete}>Schnittstelle entfernen</Button>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </article>
+  )
+}
+
+function ContractFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-4 py-3">
+      <p className="text-xs font-medium text-muted">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap text-sm">{value || '—'}</p>
+    </div>
+  )
+}
+
+function ContractFields({ draft, setDraft, components, labels }: { draft: ContractDraft; setDraft: (draft: ContractDraft) => void; components: Component[]; labels: { name: string; operation: string; provider: string; consumer: string } }) {
+  return (
+    <>
+      <Field label="Name"><Input aria-label={labels.name} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
+      <Field label="Aufrufname"><Input aria-label={labels.operation} value={draft.operation} placeholder="Bestellung freigeben" onChange={(event) => setDraft({ ...draft, operation: event.target.value })} /></Field>
+      <Field label="Anbieter"><Select aria-label={labels.provider} value={draft.providerId} onChange={(event) => setDraft({ ...draft, providerId: event.target.value })}><option value="">Auswählen</option>{components.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
+      <Field label="Aufrufer"><Select aria-label={labels.consumer} value={draft.consumerId} onChange={(event) => setDraft({ ...draft, consumerId: event.target.value })}><option value="">Kein Aufrufer</option>{components.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
+      <Field label="Eingabe"><Textarea className="min-h-16" value={draft.input} onChange={(event) => setDraft({ ...draft, input: event.target.value })} /></Field>
+      <Field label="Ausgabe"><Textarea className="min-h-16" value={draft.output} onChange={(event) => setDraft({ ...draft, output: event.target.value })} /></Field>
+      <Field label="Fehler"><Textarea className="min-h-16" value={draft.errors} onChange={(event) => setDraft({ ...draft, errors: event.target.value })} /></Field>
+    </>
   )
 }
 
